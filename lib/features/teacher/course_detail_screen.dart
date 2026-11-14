@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/models/course_model.dart';
 import '../../core/models/session_model.dart';
@@ -7,8 +6,10 @@ import '../../core/models/student_model.dart';
 import '../../data/local/app_database.dart';
 import '../../data/services/course_overview_service.dart';
 import '../../data/services/roster_import_service.dart';
+import '../../data/services/student_admin_service.dart';
 import '../../ui/ui.dart';
 import 'course_reports_screen.dart';
+import 'enrollment_host_screen.dart';
 import 'live_attendance_session_screen.dart';
 import 'roster_import_modal.dart';
 import 'signed_acta_dialog.dart';
@@ -73,6 +74,15 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     }
   }
 
+  Future<void> _openEnrollment() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => EnrollmentHostScreen(course: widget.course, database: _database),
+      ),
+    );
+    if (mounted) await _loadData();
+  }
+
   Future<void> _openImportModal() async {
     final changed = await RosterImportModal.show(context, widget.course);
     if (changed == true) {
@@ -125,7 +135,6 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   }
 
   Future<void> _showCourseOptionsSheet() async {
-    final c = UiColors.of(context);
     await showUiSheet<void>(
       context,
       builder: (sheetContext) {
@@ -135,44 +144,28 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
           children: [
             const SizedBox(height: UiSpace.sm),
             UiNavRow(
-              title: 'Agregar estudiantes',
+              title: 'Inscribir estudiantes',
+              subtitle: 'Un solo QR para toda la clase',
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _openEnrollment();
+              },
+            ),
+            UiNavRow(
+              title: 'Agregar a la lista',
+              subtitle: 'Pegar, desde un archivo o uno por uno',
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 _openImportModal();
               },
             ),
-            Theme(
-              data: Theme.of(sheetContext).copyWith(
-                extensions: <ThemeExtension<dynamic>>[
-                  UiColors(
-                    background: c.background,
-                    surface: c.surface,
-                    ink: c.absentText,
-                    muted: c.muted,
-                    line: c.line,
-                    primary: c.primary,
-                    onPrimary: c.onPrimary,
-                    primaryText: c.primaryText,
-                    veil: c.veil,
-                    tint: c.tint,
-                    tintText: c.tintText,
-                    manualBg: c.manualBg,
-                    manualText: c.manualText,
-                    absentBg: c.absentBg,
-                    absentText: c.absentText,
-                    presentDot: c.presentDot,
-                    manualDot: c.manualDot,
-                    absentDot: c.absentDot,
-                  ),
-                ],
-              ),
-              child: UiNavRow(
-                title: 'Eliminar clase',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _confirmDeleteCourse();
-                },
-              ),
+            UiNavRow(
+              title: 'Eliminar clase',
+              destructive: true,
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _confirmDeleteCourse();
+              },
             ),
           ],
         );
@@ -277,11 +270,8 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                                 ),
                                 const SizedBox(height: UiSpace.xs),
                                 Text(
-                                  UiFormat.count(
-                                    overview.studentCount,
-                                    'estudiante',
-                                    'estudiantes',
-                                  ),
+                                  '${UiFormat.count(overview.studentCount, 'estudiante', 'estudiantes')}'
+                                  ' · ${overview.boundCount} con celular vinculado',
                                   style: UiText.label.copyWith(color: c.onPrimary),
                                 ),
                               ],
@@ -308,9 +298,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                   : UiBanner(
                       tone: UiBannerTone.info,
                       message:
-                          'Agrega a tus estudiantes para poder tomar asistencia.',
-                      actionLabel: 'Agregar estudiantes',
-                      onAction: _openImportModal,
+                          'Inscribe a tus estudiantes con el código de la clase. Puedes empezar aunque no tengas la lista.',
+                      actionLabel: 'Inscribir estudiantes',
+                      onAction: _openEnrollment,
                     ),
             ),
             Padding(
@@ -495,8 +485,10 @@ class _CourseStudentsScreen extends StatefulWidget {
 }
 
 class _CourseStudentsScreenState extends State<_CourseStudentsScreen> {
+  late final StudentAdminService _admin = StudentAdminService(database: widget.database);
   bool _isLoading = true;
   List<StudentModel> _students = <StudentModel>[];
+  List<StudentModel> _retired = <StudentModel>[];
 
   @override
   void initState() {
@@ -507,14 +499,16 @@ class _CourseStudentsScreenState extends State<_CourseStudentsScreen> {
   Future<void> _loadStudents() async {
     setState(() => _isLoading = true);
     try {
-      final list = await widget.database.getStudentsByCourse(widget.course.id);
-      if (mounted) {
-        setState(() {
-          _students = list;
-          _isLoading = false;
-        });
-      }
+      final all = await widget.database.getAllStudentsByCourse(widget.course.id);
+      if (!mounted) return;
+      int byName(StudentModel a, StudentModel b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
+      setState(() {
+        _students = all.where((s) => s.isActive).toList()..sort(byName);
+        _retired = all.where((s) => s.isRetired).toList()..sort(byName);
+        _isLoading = false;
+      });
     } catch (e) {
+      debugPrint('No se pudo cargar la lista de estudiantes: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         showUiSnack(context, 'No se pudo cargar la lista de estudiantes.');
@@ -524,65 +518,52 @@ class _CourseStudentsScreenState extends State<_CourseStudentsScreen> {
 
   Future<void> _openImportModal() async {
     final changed = await RosterImportModal.show(context, widget.course);
-    if (changed == true) {
-      await _loadStudents();
-    }
+    if (changed == true) await _loadStudents();
   }
 
-  void _showStudentQrDialog(StudentModel student) {
-    final payload = widget.rosterService.generateEnrollmentQrPayload(
-      course: widget.course,
-      student: student,
+  Future<void> _openEnrollment() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => EnrollmentHostScreen(course: widget.course, database: widget.database),
+      ),
     );
+    if (mounted) await _loadStudents();
+  }
 
-    showDialog<void>(
-      context: context,
-      builder: (BuildContext ctx) {
-        final c = UiColors.of(ctx);
-        return AlertDialog(
-          title: Text(student.fullName),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(UiSpace.md),
-                decoration: BoxDecoration(
-                  color: UiColors.light.surface,
-                  borderRadius: BorderRadius.circular(UiRadius.md),
-                  border: Border.all(color: c.line),
-                ),
-                // Tamaño fijo: AlertDialog mide a sus hijos antes de dibujarlos y
-                // QrImageView no puede dar su tamaño por adelantado (sin esto el
-                // diálogo falla y no se abre).
-                child: SizedBox.square(
-                  dimension: 240,
-                  child: QrImageView(
-                  data: payload,
-                  version: QrVersions.auto,
-                  size: 240.0,
-                  eyeStyle: QrEyeStyle(
-                    eyeShape: QrEyeShape.square,
-                    color: UiColors.light.ink,
-                  ),
-                  dataModuleStyle: QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.square,
-                    color: UiColors.light.ink,
-                  ),
-                ),
-                ),
+  Future<void> _showStudentOptions(StudentModel student) async {
+    final kind = await _admin.removalKindFor(student);
+    if (!mounted) return;
+    await showUiSheet<void>(
+      context,
+      builder: (sheetContext) {
+        final c = UiColors.of(sheetContext);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(student.fullName, style: UiText.h2.copyWith(color: c.ink)),
+            const SizedBox(height: UiSpace.xs),
+            Text(_subtitleFor(student), style: UiText.label.copyWith(color: c.muted)),
+            const SizedBox(height: UiSpace.md),
+            if (student.hasDevice)
+              UiNavRow(
+                title: 'Desvincular celular',
+                subtitle: 'Podrá vincular otro desde «Inscribir estudiantes»',
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _confirmUnbind(student);
+                },
               ),
-              const SizedBox(height: UiSpace.md),
-              Text(
-                'Pídele que abra Asistencia Estudiante, toque «Unirme a una clase» y apunte a este código.',
-                textAlign: TextAlign.center,
-                style: UiText.body.copyWith(color: c.muted),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cerrar'),
+            UiNavRow(
+              title: kind == StudentRemovalKind.delete ? 'Eliminar de la clase' : 'Retirar de la clase',
+              subtitle: kind == StudentRemovalKind.delete
+                  ? 'No tiene asistencias: se borra por completo'
+                  : 'Su historial se conserva en los reportes',
+              destructive: true,
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _confirmRemoval(student, kind);
+              },
             ),
           ],
         );
@@ -590,47 +571,146 @@ class _CourseStudentsScreenState extends State<_CourseStudentsScreen> {
     );
   }
 
+  Future<void> _confirmUnbind(StudentModel student) async {
+    final ok = await showUiConfirm(
+      context,
+      title: '¿Desvincular el celular?',
+      message:
+          'El celular de ${student.fullName} dejará de servir para marcar asistencia en esta clase. Podrá vincular otro desde «Inscribir estudiantes».',
+      confirmLabel: 'Desvincular',
+      destructive: true,
+    );
+    if (!ok) return;
+    try {
+      await _admin.unbindDevice(student);
+      if (mounted) showUiSnack(context, 'Celular desvinculado.');
+    } catch (e) {
+      debugPrint('No se pudo desvincular: $e');
+      if (mounted) showUiSnack(context, 'No se pudo desvincular. Inténtalo de nuevo.');
+    }
+    await _loadStudents();
+  }
+
+  /// Doble confirmación: aviso con las consecuencias y luego escribir el primer nombre.
+  Future<void> _confirmRemoval(StudentModel student, StudentRemovalKind kind) async {
+    final isDelete = kind == StudentRemovalKind.delete;
+    final count = isDelete ? 0 : await _admin.attendanceCount(student);
+    if (!mounted) return;
+    final first = await showUiConfirm(
+      context,
+      title: isDelete ? '¿Eliminar a ${student.fullName}?' : '¿Retirar a ${student.fullName}?',
+      message: isDelete
+          ? 'No tiene asistencias registradas. Se borrará de la clase y su celular dejará de servir.'
+          : 'Tiene ${UiFormat.count(count, 'asistencia registrada', 'asistencias registradas')}. '
+              'Saldrá de la lista y de las sesiones nuevas, pero su historial se conserva en los reportes y el Excel. '
+              'Su celular dejará de servir para esta clase.',
+      confirmLabel: 'Continuar',
+      destructive: true,
+    );
+    if (!first || !mounted) return;
+
+    final confirmed = await showUiSheet<bool>(
+      context,
+      builder: (_) => _TypeNameToConfirm(student: student, actionLabel: isDelete ? 'Eliminar' : 'Retirar'),
+    );
+    if (confirmed != true) return;
+    try {
+      final done = await _admin.remove(student);
+      if (mounted) {
+        showUiSnack(
+          context,
+          done == StudentRemovalKind.delete
+              ? '${student.fullName} fue eliminado de la clase.'
+              : '${student.fullName} fue retirado de la clase.',
+        );
+      }
+    } catch (e) {
+      debugPrint('No se pudo quitar al estudiante: $e');
+      if (mounted) showUiSnack(context, 'No se pudo completar. Inténtalo de nuevo.');
+    }
+    await _loadStudents();
+  }
+
+  String _subtitleFor(StudentModel student) {
+    final parts = <String>[student.studentCode];
+    if (student.isRetired) {
+      final when = DateTime.tryParse(student.retiredAt ?? '');
+      parts.add(when == null ? 'Retirado' : 'Retirado el ${UiFormat.shortDate(when.toLocal())}');
+    } else {
+      parts.add(student.hasDevice ? 'Celular vinculado' : 'Sin celular');
+      if (student.wasAddedInClass) parts.add('Agregado en clase');
+    }
+    return parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final bound = _students.where((s) => s.hasDevice).length;
     final Widget body;
     if (_isLoading) {
       body = const Center(child: CircularProgressIndicator());
-    } else if (_students.isEmpty) {
+    } else if (_students.isEmpty && _retired.isEmpty) {
       body = UiEmptyState(
         icon: Icons.group_add_outlined,
         title: 'Aún no hay estudiantes',
-        message:
-            'Agrégalos pegando la lista, desde un archivo o uno por uno.',
-        actionLabel: 'Agregar estudiantes',
-        onAction: _openImportModal,
+        message: 'Inscríbelos con el código de la clase, o carga primero tu lista.',
+        actionLabel: 'Inscribir estudiantes',
+        onAction: _openEnrollment,
       );
     } else {
       body = RefreshIndicator(
         onRefresh: _loadStudents,
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(
-            UiSpace.page,
-            UiSpace.sm,
-            UiSpace.page,
-            UiSpace.xl,
-          ),
-          itemCount: _students.length,
-          itemBuilder: (BuildContext context, int index) {
-            final student = _students[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: UiSpace.sm),
-              child: UiPersonRow(
-                name: student.fullName,
-                subtitle: student.studentCode,
-                onTap: () => _showStudentQrDialog(student),
-                trailing: UiRoundIconButton(
-                  icon: Icons.qr_code_rounded,
-                  tooltip: 'Código para unirse',
-                  onPressed: () => _showStudentQrDialog(student),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(UiSpace.page, UiSpace.sm, UiSpace.page, UiSpace.xl),
+          children: [
+            if (_students.isNotEmpty) ...[
+              Text(
+                '${UiFormat.count(_students.length, 'estudiante', 'estudiantes')} · $bound con celular vinculado',
+                style: UiText.label.copyWith(color: c.muted),
+              ),
+              const SizedBox(height: UiSpace.sm),
+              UiListGroup(
+                children: [
+                  for (final student in _students)
+                    UiPersonRow(
+                      name: student.fullName,
+                      subtitle: _subtitleFor(student),
+                      avatarTone: student.hasDevice ? UiTone.tint : UiTone.neutral,
+                      onTap: () => _showStudentOptions(student),
+                      trailing: UiRoundIconButton(
+                        icon: Icons.more_horiz_rounded,
+                        tooltip: 'Opciones de ${student.fullName}',
+                        onPressed: () => _showStudentOptions(student),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            if (_retired.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: UiSpace.xl, bottom: UiSpace.sm),
+                child: Text('Retirados (${_retired.length})', style: UiText.title.copyWith(color: c.ink)),
+              ),
+              UiListGroup(
+                children: [
+                  for (final student in _retired)
+                    UiPersonRow(
+                      name: student.fullName,
+                      subtitle: _subtitleFor(student),
+                      avatarTone: UiTone.neutral,
+                    ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: UiSpace.sm),
+                child: Text(
+                  'Si alguno vuelve, se inscribe de nuevo y lo apruebas.',
+                  style: UiText.label.copyWith(color: c.muted),
                 ),
               ),
-            );
-          },
+            ],
+          ],
         ),
       );
     }
@@ -640,13 +720,68 @@ class _CourseStudentsScreenState extends State<_CourseStudentsScreen> {
         title: 'Estudiantes',
         subtitle: widget.course.name,
         onBack: () => Navigator.of(context).pop(),
+        trailing: UiRoundIconButton(
+          icon: Icons.playlist_add_rounded,
+          tooltip: 'Agregar a la lista',
+          onPressed: _openImportModal,
+        ),
       ),
       bottom: UiButton(
-        label: 'Agregar estudiantes',
-        icon: Icons.add_rounded,
-        onPressed: _openImportModal,
+        label: 'Inscribir estudiantes',
+        icon: Icons.qr_code_2_rounded,
+        onPressed: _openEnrollment,
       ),
       body: body,
+    );
+  }
+}
+
+/// Segunda confirmación: escribir el primer nombre del estudiante.
+class _TypeNameToConfirm extends StatefulWidget {
+  const _TypeNameToConfirm({required this.student, required this.actionLabel});
+
+  final StudentModel student;
+  final String actionLabel;
+
+  @override
+  State<_TypeNameToConfirm> createState() => _TypeNameToConfirmState();
+}
+
+class _TypeNameToConfirmState extends State<_TypeNameToConfirm> {
+  final TextEditingController _typed = TextEditingController();
+
+  @override
+  void dispose() {
+    _typed.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final firstName = StudentAdminService.firstNameOf(widget.student);
+    final matches = StudentAdminService.confirmsFirstName(widget.student, _typed.text);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Confirma escribiendo su nombre', style: UiText.h2.copyWith(color: c.ink)),
+        const SizedBox(height: UiSpace.xs),
+        Text('Escribe «$firstName» para continuar.', style: UiText.body.copyWith(color: c.muted)),
+        const SizedBox(height: UiSpace.lg),
+        TextField(
+          controller: _typed,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(labelText: 'Primer nombre'),
+        ),
+        const SizedBox(height: UiSpace.lg),
+        UiButton(
+          label: widget.actionLabel,
+          onPressed: matches ? () => Navigator.of(context).pop(true) : null,
+        ),
+      ],
     );
   }
 }
