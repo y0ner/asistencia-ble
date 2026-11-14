@@ -11,7 +11,6 @@ import 'package:asistencia_uniguajira/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 Future<void> _loadFigtree() async {
@@ -144,10 +143,10 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.text('Agrega a tus estudiantes para poder tomar asistencia.'),
+          find.text('Inscribe a tus estudiantes con el código de la clase. Puedes empezar aunque no tengas la lista.'),
           findsOneWidget,
         );
-        expect(find.text('Agregar estudiantes'), findsOneWidget);
+        expect(find.text('Inscribir estudiantes'), findsOneWidget);
         expect(find.text('Tomar asistencia'), findsNothing);
         expect(find.widgetWithText(UiButton, 'Estudiantes'), findsOneWidget);
         expect(find.widgetWithText(UiButton, 'Enviar Excel'), findsOneWidget);
@@ -168,10 +167,10 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.byType(CourseDetailScreen), findsOneWidget);
         expect(
-          find.text('Agrega a tus estudiantes para poder tomar asistencia.'),
+          find.text('Inscribe a tus estudiantes con el código de la clase. Puedes empezar aunque no tengas la lista.'),
           findsOneWidget,
         );
-        expect(find.text('Agregar estudiantes'), findsOneWidget);
+        expect(find.text('Inscribir estudiantes'), findsOneWidget);
         expect(find.text('Tomar asistencia'), findsNothing);
         expect(find.widgetWithText(UiButton, 'Estudiantes'), findsOneWidget);
         expect(find.widgetWithText(UiButton, 'Enviar Excel'), findsOneWidget);
@@ -243,7 +242,7 @@ void main() {
 
         // Tarjeta principal indica volver a la sesión abierta y conteo de estudiantes
         expect(find.text('Volver a la sesión'), findsOneWidget);
-        expect(find.text('2 estudiantes'), findsOneWidget);
+        expect(find.text('2 estudiantes · 0 con celular vinculado'), findsOneWidget);
 
         // Fichas estadísticas (incluye la ficha en riesgo)
         expect(find.text('en riesgo'), findsOneWidget);
@@ -270,7 +269,8 @@ void main() {
         await tester.tap(optionsButton);
         await tester.pumpAndSettle();
 
-        expect(find.text('Agregar estudiantes'), findsOneWidget);
+        expect(find.text('Inscribir estudiantes'), findsOneWidget);
+        expect(find.text('Agregar a la lista'), findsOneWidget);
         final deleteRow = find.text('Eliminar clase');
         expect(deleteRow, findsOneWidget);
 
@@ -311,7 +311,7 @@ void main() {
 
         // Tarjeta principal y conteos
         expect(find.text('Volver a la sesión'), findsOneWidget);
-        expect(find.text('2 estudiantes'), findsOneWidget);
+        expect(find.text('2 estudiantes · 0 con celular vinculado'), findsOneWidget);
 
         // Fichas y sesiones
         expect(find.text('en riesgo'), findsOneWidget);
@@ -345,21 +345,12 @@ void main() {
     );
   });
 
-  testWidgets('el código para unirse de un estudiante se abre sin errores', (
-    tester,
-  ) async {
+  testWidgets('eliminar un estudiante pide dos confirmaciones (aviso y su primer nombre)', (tester) async {
     await tester.runAsync(() async {
       await database.insertStudent(
-        _sampleStudent(
-          id: 'qr-1',
-          courseId: course.id,
-          code: '0182120016',
-          name: 'YONER DE JESUS ISAZA VIDES',
-          bitIndex: 0,
-        ),
+        _sampleStudent(id: 'del-1', courseId: course.id, code: '0182120016', name: 'YONER DE JESUS ISAZA VIDES', bitIndex: 0),
       );
     });
-    // Mismo tamaño y letra que el celular donde apareció el error (Xiaomi, 384 × 853).
     await _pumpScreen(
       tester,
       theme: UiTheme.dark(),
@@ -372,14 +363,44 @@ void main() {
     await tester.tap(find.widgetWithText(UiButton, 'Estudiantes'));
     await tester.pump(const Duration(milliseconds: 400));
     await _waitForDb(tester);
-    // Esperar a que termine la animación de entrada de la pantalla.
     await tester.pump(const Duration(milliseconds: 600));
-    await tester.tap(find.byIcon(Icons.qr_code_rounded));
+    expect(find.textContaining('Sin celular'), findsOneWidget);
+    expect(find.byTooltip('Código para unirse'), findsNothing); // ya no hay QR por estudiante
+
+    await tester.tap(find.byTooltip('Opciones de YONER DE JESUS ISAZA VIDES'));
+    await _waitForDb(tester);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Eliminar de la clase'), findsOneWidget); // sin asistencias: eliminar
+    await tester.tap(find.text('Eliminar de la clase'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Primera confirmación
+    expect(find.text('¿Eliminar a YONER DE JESUS ISAZA VIDES?'), findsOneWidget);
+    await tester.tap(find.text('Continuar'));
+    // Se cierra el aviso y sube la hoja: esperar a que termine la animación.
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 150));
+    }
+
+    // Segunda confirmación: el botón solo se habilita con el primer nombre
+    expect(find.text('Escribe «YONER» para continuar.'), findsOneWidget);
+    final button = find.widgetWithText(UiButton, 'Eliminar');
+    expect(tester.widget<UiButton>(button).onPressed, isNull);
+    await tester.enterText(find.byType(TextField), 'otro');
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.widget<UiButton>(button).onPressed, isNull);
+    await tester.enterText(find.byType(TextField), 'yoner');
+    await tester.pump();
+    expect(tester.widget<UiButton>(button).onPressed, isNotNull);
+    await tester.tap(button);
+    for (var i = 0; i < 10; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.textContaining('fue eliminado de la clase'), findsOneWidget);
 
     expect(tester.takeException(), isNull);
-    expect(find.byType(QrImageView), findsOneWidget);
-    expect(find.text('YONER DE JESUS ISAZA VIDES'), findsWidgets);
+    final remaining = await tester.runAsync(() => database.getAllStudentsByCourse(course.id));
+    expect(remaining, isEmpty);
   });
 }

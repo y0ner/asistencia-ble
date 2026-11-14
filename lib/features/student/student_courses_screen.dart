@@ -73,10 +73,7 @@ class _StudentCoursesScreenState extends State<StudentCoursesScreen> {
   Future<void> _openQrScanner() async {
     final result = await Navigator.of(context).push<StudentEnrollmentModel>(
       MaterialPageRoute<StudentEnrollmentModel>(
-        builder: (_) => StudentQrEnrollmentScreen(
-          enrollmentService: _enrollmentService,
-          database: _database,
-        ),
+        builder: (_) => StudentQrEnrollmentScreen(database: _database),
       ),
     );
 

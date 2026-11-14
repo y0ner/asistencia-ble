@@ -33,6 +33,7 @@ class CourseOverview {
   const CourseOverview({
     required this.course,
     required this.studentCount,
+    required this.boundCount,
     required this.closedSessionCount,
     required this.attendancePercent,
     required this.atRiskCount,
@@ -42,7 +43,13 @@ class CourseOverview {
   });
 
   final CourseModel course;
+
+  /// Estudiantes activos de la clase.
   final int studentCount;
+
+  /// Cuántos ya vincularon su celular.
+  final int boundCount;
+
   final int closedSessionCount;
 
   /// Promedio de asistencia de los estudiantes en sesiones cerradas, de 0 a 100.
@@ -130,6 +137,7 @@ class CourseOverviewService {
     return CourseOverview(
       course: summary.course,
       studentCount: studentCount,
+      boundCount: (await _database.getStudentsByCourse(courseId)).where((s) => s.hasDevice).length,
       closedSessionCount: summary.totalClosedSessions,
       attendancePercent: averageAttendance(summary.students, summary.totalClosedSessions),
       atRiskCount: summary.students.where(isAtRisk).length,

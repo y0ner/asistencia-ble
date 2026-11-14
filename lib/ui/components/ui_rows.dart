@@ -145,6 +145,7 @@ class UiNavRow extends StatelessWidget {
     this.leading,
     this.trailing,
     required this.onTap,
+    this.destructive = false,
   });
 
   final String title;
@@ -154,6 +155,9 @@ class UiNavRow extends StatelessWidget {
   /// Por defecto, una flecha.
   final Widget? trailing;
   final VoidCallback? onTap;
+
+  /// Acción que borra o quita algo: el título va en coral.
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
@@ -176,7 +180,7 @@ class UiNavRow extends StatelessWidget {
                       title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: UiText.bodyStrong.copyWith(color: c.ink),
+                      style: UiText.bodyStrong.copyWith(color: destructive ? c.absentText : c.ink),
                     ),
                     if (subtitle != null)
                       Text(
