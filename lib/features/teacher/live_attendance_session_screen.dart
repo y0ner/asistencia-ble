@@ -409,8 +409,13 @@ class _LiveAttendanceSessionScreenState
     final confirmed = await showUiConfirm(
       context,
       title: '¿Cerrar la sesión?',
-      message:
-          'Llegaron $presentCount de $totalCount. Los $missingCount que faltan quedarán con falta. Después de firmar no se puede cambiar.',
+      message: missingCount <= 0
+          ? 'Llegaron todos ($presentCount de $totalCount). Después de firmar no se puede cambiar.'
+          : presentCount == 0
+              ? 'Aún no llega nadie: los $totalCount quedarán con falta. Después de firmar no se puede cambiar.'
+              : 'Llegaron $presentCount de $totalCount. '
+                  '${missingCount == 1 ? 'El que falta quedará' : 'Los $missingCount que faltan quedarán'} con falta. '
+                  'Después de firmar no se puede cambiar.',
       confirmLabel: 'Cerrar y firmar',
       cancelLabel: 'Cancelar',
     );
