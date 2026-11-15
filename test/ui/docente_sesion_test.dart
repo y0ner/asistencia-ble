@@ -54,6 +54,11 @@ class _FakeAppDatabase extends AppDatabase {
   }
 
   @override
+  Future<List<SessionModel>> getSessionsByCourse(String courseId) async {
+    return sessions.values.where((s) => s.courseId == courseId).toList();
+  }
+
+  @override
   Future<List<AttendanceRecordModel>> getAttendanceRecordsBySession(
     String sessionId,
   ) async {

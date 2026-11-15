@@ -509,6 +509,35 @@ class AppDatabase {
 
   /// Cierra la sesión guardando su fecha de cierre, el Bitmap y el hash del
   /// acta.
+  /// Deja como máximo una sesión abierta en la clase y la devuelve (o nula).
+  ///
+  /// Repara clases con varias sesiones abiertas (versiones anteriores creaban
+  /// una nueva cada vez que se entraba a tomar asistencia): las más viejas se
+  /// borran si están vacías y se cierran si tienen asistencias.
+  Future<SessionModel?> consolidateOpenSession(String courseId) async {
+    final open = (await getSessionsByCourse(courseId))
+        .where((SessionModel s) => s.closedAt == null)
+        .toList()
+      ..sort((SessionModel a, SessionModel b) => b.startedAt.compareTo(a.startedAt));
+    if (open.isEmpty) return null;
+    for (final stale in open.skip(1)) {
+      final records = await getAttendanceRecordsBySession(stale.id);
+      if (records.isEmpty) {
+        await deleteSession(stale.id);
+      } else {
+        await closeSession(sessionId: stale.id, closedAt: DateTime.now().toIso8601String());
+      }
+    }
+    return open.first;
+  }
+
+  /// Borra una sesión (y en cascada sus registros). Solo para sesiones vacías
+  /// que quedaron abiertas por error.
+  Future<void> deleteSession(String sessionId) async {
+    final db = await database;
+    await db.delete(_sessionsTable, where: 'id = ?', whereArgs: <Object?>[sessionId]);
+  }
+
   Future<void> closeSession({
     required String sessionId,
     required String closedAt,

@@ -110,6 +110,7 @@ class CourseOverviewService {
 
   /// Resumen de una clase.
   Future<CourseOverview> load(String courseId) async {
+    await _database.consolidateOpenSession(courseId);
     final summary = await _reportService.buildCourseSummary(courseId);
     final studentCount = summary.students.length;
 
