@@ -465,8 +465,6 @@ class AttendanceSessionController {
       );
     }
 
-    final pin = customPin ?? _generatePin();
-    _validatePin(pin);
     await _stopBleRuntime();
     _signedActa = null;
     _lastDetectionOutcome = null;
@@ -479,22 +477,41 @@ class AttendanceSessionController {
       for (final StudentModel student in students)
         student.bitIndex: student.personalSecret,
     };
-    final startedAt = DateTime.now().toIso8601String();
-    final session = SessionModel(
-      id: _uuid.v4(),
-      courseId: course.id,
-      startedAt: startedAt,
-      roomPin: pin.toString().padLeft(AppConstants.roomPinLength, '0'),
-      bitmapHex: AppConstants.emptyBitmapHex,
-    );
-    await database.upsertSession(session);
+
+    // Una sola sesión abierta por clase: si ya hay una, se retoma (mismo PIN y
+    // los que ya llegaron) en vez de crear otra.
+    final resumable = await database.consolidateOpenSession(course.id);
+    late final SessionModel session;
+    late final int pin;
+    var bitmap = BlePacketCodec.createEmptyBitmap8();
+    if (resumable != null) {
+      session = resumable;
+      pin = int.tryParse(resumable.roomPin) ?? _generatePin();
+      final records = await database.getAttendanceRecordsBySession(resumable.id);
+      for (final record in records) {
+        if (record.bitIndex >= 0 && record.bitIndex < AppConstants.bitmapBitCount) {
+          bitmap = BlePacketCodec.setStudentBit(bitmap, record.bitIndex);
+        }
+      }
+    } else {
+      pin = customPin ?? _generatePin();
+      _validatePin(pin);
+      session = SessionModel(
+        id: _uuid.v4(),
+        courseId: course.id,
+        startedAt: DateTime.now().toIso8601String(),
+        roomPin: pin.toString().padLeft(AppConstants.roomPinLength, '0'),
+        bitmapHex: AppConstants.emptyBitmapHex,
+      );
+      await database.upsertSession(session);
+    }
 
     final activeState = ActiveCourseSessionState(
       session: session,
       course: course,
       pin: pin,
       students: students,
-      bitmap8: BlePacketCodec.createEmptyBitmap8(),
+      bitmap8: bitmap,
       secretHexByBitIndex: secrets,
     );
     _state = activeState;
@@ -877,6 +894,22 @@ class AttendanceSessionController {
   }
 
   /// Detiene el radar y libera el servicio BLE propio, sin cerrar SQLite.
+  /// Descarta la sesión abierta si nadie llegó (el docente salió sin tomar
+  /// asistencia). Devuelve `true` si la borró; con asistencias no hace nada.
+  Future<bool> discardIfEmpty() {
+    _ensureNotDisposed();
+    return _serialize(() async {
+      final current = _state;
+      if (current == null || !current.isOpen) return false;
+      final records = await database.getAttendanceRecordsBySession(current.session.id);
+      if (records.isNotEmpty) return false;
+      await _stopBleRuntime();
+      await database.deleteSession(current.session.id);
+      _state = null;
+      return true;
+    });
+  }
+
   Future<void> dispose() async {
     if (_disposed) {
       return;

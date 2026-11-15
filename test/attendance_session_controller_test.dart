@@ -1,3 +1,6 @@
+import 'package:asistencia_uniguajira/core/models/attendance_record_model.dart';
+import 'package:asistencia_uniguajira/core/models/session_model.dart';
+import 'package:asistencia_uniguajira/data/services/course_overview_service.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -179,6 +182,67 @@ void main() {
     // -------------------------------------------------------------------------
     // 1. Inicio de sesión docente y configuración inicial
     // -------------------------------------------------------------------------
+    group('retomar la sesión abierta', () {
+      test('salir sin cerrar y volver a entrar retoma la misma sesión, PIN y llegados', () async {
+        final first = await controller.startTeacherSession(course: course, customPin: 47);
+        await controller.toggleManualAttendance(studentId: student2.id, isPresent: true);
+        await controller.dispose(); // el docente sale sin cerrar
+
+        final again = AttendanceSessionController(database: database, bleService: ble);
+        final resumed = await again.startTeacherSession(course: course, customPin: 12);
+        expect(resumed.session.id, first.session.id);
+        expect(resumed.pin, 47); // se conserva el PIN que ya se dictó
+        expect(BlePacketCodec.isStudentBitSet(resumed.bitmap8, student2.bitIndex), isTrue);
+        final open = (await database.getSessionsByCourse(course.id)).where((s) => s.closedAt == null);
+        expect(open, hasLength(1));
+        await again.dispose();
+        controller = AttendanceSessionController(database: database, bleService: ble);
+      });
+
+      test('repara clases con varias sesiones abiertas (caso real del 15 de noviembre)', () async {
+        Future<void> openSession(String id, String startedAt) =>
+            database.insertSession(SessionModel(id: id, courseId: course.id, startedAt: startedAt, roomPin: '69'));
+        await openSession('vieja-vacia', '2026-11-15T08:27:13.000');
+        await openSession('vieja-con-asistencia', '2026-11-15T08:28:07.000');
+        await openSession('mas-reciente', '2026-11-15T08:28:20.000');
+        await database.insertAttendanceRecord(AttendanceRecordModel(
+          id: 'r1',
+          sessionId: 'vieja-con-asistencia',
+          studentId: student0.id,
+          bitIndex: student0.bitIndex,
+          method: AppConstants.attendanceMethodManualInverted,
+          recordedAt: '2026-11-15T08:28:30.000',
+        ));
+
+        final open = await database.consolidateOpenSession(course.id);
+        expect(open!.id, 'mas-reciente');
+        final sessions = {for (final s in await database.getSessionsByCourse(course.id)) s.id: s};
+        expect(sessions.containsKey('vieja-vacia'), isFalse); // vacía: se borra
+        expect(sessions['vieja-con-asistencia']!.closedAt, isNotNull); // con asistencias: se cierra
+        expect(sessions['mas-reciente']!.closedAt, isNull);
+      });
+
+      test('salir sin que nadie llegue descarta la sesión; con asistencias no', () async {
+        final empty = await controller.startTeacherSession(course: course, customPin: 47);
+        expect(await controller.discardIfEmpty(), isTrue);
+        expect(await database.getSessionById(empty.session.id), isNull);
+        expect(await database.consolidateOpenSession(course.id), isNull);
+
+        final withOne = await controller.startTeacherSession(course: course, customPin: 48);
+        await controller.toggleManualAttendance(studentId: student0.id, isPresent: true);
+        expect(await controller.discardIfEmpty(), isFalse);
+        expect((await database.getSessionById(withOne.session.id))!.closedAt, isNull);
+      });
+
+      test('después de cerrar y firmar ya no queda ninguna sesión abierta', () async {
+        await controller.startTeacherSession(course: course, customPin: 47);
+        await controller.closeAndSignSession();
+        expect(await database.consolidateOpenSession(course.id), isNull);
+        final overview = await CourseOverviewService(database: database).load(course.id);
+        expect(overview.openSession, isNull);
+      });
+    });
+
     test(
       '1.1 startTeacherSession inicializa sesión con PIN de 2 dígitos, roster y bitmap8 en ceros',
       () async {

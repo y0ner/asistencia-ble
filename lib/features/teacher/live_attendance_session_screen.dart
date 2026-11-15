@@ -83,12 +83,10 @@ class _LiveAttendanceSessionScreenState
   _AttendanceFilter _selectedFilter = _AttendanceFilter.all;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-  late final DateTime _sessionStartTime;
 
   @override
   void initState() {
     super.initState();
-    _sessionStartTime = DateTime.now();
     unawaited(WakelockPlus.enable());
     _database = widget.database ?? AppDatabase.instance;
     _bleService = widget.bleService ?? BleAttendanceService();
@@ -363,21 +361,38 @@ class _LiveAttendanceSessionScreenState
     }
   }
 
-  Future<bool> _confirmLeaveSession() {
+  /// Hora en que empezó la sesión (si se retomó, la original).
+  DateTime _sessionStartedAt() {
+    final startedAt = _controller.state?.session.startedAt;
+    return (startedAt == null ? null : DateTime.tryParse(startedAt)?.toLocal()) ?? DateTime.now();
+  }
+
+  Future<bool> _confirmLeaveSession({required bool nobodyArrived}) {
     return showUiConfirm(
       context,
       title: '¿Salir de la sesión?',
-      message: 'La sesión sigue abierta. Puedes volver desde la clase.',
+      message: nobodyArrived
+          ? 'Aún no llega nadie, así que la sesión se descarta. Podrás empezar otra cuando quieras.'
+          : 'La sesión sigue abierta y verás «Sesión en curso» en el inicio hasta que la cierres y firmes.',
       confirmLabel: 'Salir',
       cancelLabel: 'Seguir aquí',
     );
   }
 
   Future<void> _handleBackPress() async {
-    final shouldLeave = await _confirmLeaveSession();
-    if (shouldLeave && mounted) {
-      Navigator.of(context).pop();
+    final state = _controller.state;
+    final nobodyArrived = state != null && state.isOpen && _recordsByStudentId.isEmpty;
+    final shouldLeave = await _confirmLeaveSession(nobodyArrived: nobodyArrived);
+    if (!shouldLeave || !mounted) return;
+    if (nobodyArrived) {
+      try {
+        await _controller.discardIfEmpty();
+      } catch (error) {
+        // Si no se pudo descartar, la sesión queda abierta y se puede retomar.
+        debugPrint('No se pudo descartar la sesión vacía: $error');
+      }
     }
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _handleCloseAndSignSession() async {
@@ -629,7 +644,7 @@ class _LiveAttendanceSessionScreenState
           below: Align(
             alignment: Alignment.centerLeft,
             child: UiPill(
-              label: 'En vivo · ${UiFormat.time(_sessionStartTime)}',
+              label: 'En vivo · ${UiFormat.time(_sessionStartedAt())}',
               dot: true,
             ),
           ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../data/services/app_permissions_service.dart';
+import '../features/shared/permissions_gate.dart';
 import '../ui/ui_theme.dart';
 import 'app_flavor.dart';
 
@@ -20,7 +22,10 @@ class AsistenciaApp extends StatelessWidget {
       theme: UiTheme.light(),
       darkTheme: UiTheme.dark(),
       themeMode: ThemeMode.system,
-      home: flavor.homeScreen,
+      home: PermissionsGate(
+        service: AppPermissionsService(needsCamera: flavor == AppFlavor.estudiante),
+        child: flavor.homeScreen,
+      ),
     );
   }
 }
