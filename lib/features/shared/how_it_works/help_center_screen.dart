@@ -115,6 +115,7 @@ class HelpCenterScreen extends StatelessWidget {
 
                 if (isSingleColumn) {
                   return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       for (var i = 0; i < content.topics.length; i++) ...[
                         if (i > 0) const SizedBox(height: UiSpace.md),
