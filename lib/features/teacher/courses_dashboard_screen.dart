@@ -7,7 +7,8 @@ import '../../core/models/course_model.dart';
 import '../../data/local/app_database.dart';
 import '../../data/services/course_overview_service.dart';
 import '../../ui/ui.dart';
-import '../shared/hardware_diagnostic_dialog.dart';
+import '../shared/how_it_works/help_center_screen.dart';
+import '../shared/how_it_works/how_it_works_content.dart';
 import 'course_detail_screen.dart';
 import 'live_attendance_session_screen.dart';
 
@@ -343,9 +344,14 @@ class _CoursesDashboardScreenState extends State<CoursesDashboardScreen> {
     return UiPage(
       header: UiBrandHeader(
         trailing: UiRoundIconButton(
-          icon: Icons.tune_rounded,
-          tooltip: 'Ajustes y diagnóstico',
-          onPressed: () => showHardwareDiagnosticDialog(context),
+          icon: Icons.help_outline_rounded,
+          tooltip: 'Ayuda',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  const HelpCenterScreen(content: HowItWorksContent.teacher),
+            ),
+          ),
         ),
       ),
       bottom: _isLoading || _errorMessage != null || _overviews.isEmpty
