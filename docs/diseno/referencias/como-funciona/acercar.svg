@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="640" font-family="Figtree, sans-serif" role="img" aria-label="Dos celulares cerca uno del otro, con ondas de señal entre ellos">
+  <rect width="320" height="220" fill="#E3F1F3"/>
+  <rect x="36" y="30" width="88" height="148" rx="18" fill="#1F7A87"></rect>
+  <circle cx="80" cy="92" r="20" fill="#FFFFFF" opacity="0.22"></circle>
+  <rect x="56" y="126" width="48" height="8" rx="4" fill="#FFFFFF" opacity="0.55"></rect>
+  <rect x="64" y="142" width="32" height="8" rx="4" fill="#FFFFFF" opacity="0.3"></rect>
+  <rect x="196" y="30" width="88" height="148" rx="18" fill="#FFFFFF" stroke="#10262B" stroke-width="3"></rect>
+  <circle cx="240" cy="92" r="20" fill="#E3F1F3"></circle>
+  <rect x="216" y="126" width="48" height="8" rx="4" fill="#10262B"></rect>
+  <rect x="224" y="142" width="32" height="8" rx="4" fill="#51666B" opacity="0.6"></rect>
+  <path d="M140 92 q7 12 0 24" stroke="#E8A44C" stroke-width="4" stroke-linecap="round" fill="none"></path>
+  <path d="M150 82 q13 22 0 44" stroke="#E8A44C" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.6"></path>
+  <path d="M180 92 q-7 12 0 24" stroke="#E8A44C" stroke-width="4" stroke-linecap="round" fill="none"></path>
+  <path d="M170 82 q-13 22 0 44" stroke="#E8A44C" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.6"></path>
+  <text x="80" y="203" text-anchor="middle" font-size="13" font-weight="700" fill="#10262B">Tú</text>
+  <text x="240" y="203" text-anchor="middle" font-size="13" font-weight="700" fill="#10262B">Estudiante</text>
+</svg>
