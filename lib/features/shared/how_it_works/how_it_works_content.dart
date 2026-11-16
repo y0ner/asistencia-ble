@@ -118,7 +118,7 @@ class HowItWorksContent {
   static const String factsTitle = 'Bueno saber';
   static const String troubleTitle = 'Si algo falla';
   static const String permissionsTitle = 'Permisos del celular';
-  static const String permissionsSubtitle = 'Comprobar que la app puede usar el Bluetooth.';
+  static const String permissionsSubtitle = 'Revisar el Bluetooth y los permisos.';
   static const String skip = 'Saltar';
   static const String back = 'Atrás';
   static const String next = 'Siguiente';
