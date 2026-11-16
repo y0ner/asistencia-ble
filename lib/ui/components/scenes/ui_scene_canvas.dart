@@ -194,6 +194,8 @@ class UiSceneCanvas {
     double dashOffset = 0,
     double progress = 1,
   }) {
+    // Un trazo sin empezar no se pinta (si no, la punta redonda deja un punto).
+    if (progress <= 0) return;
     var shape = parseSvgPath(d);
     if (progress < 1) shape = _trim(shape, progress.clamp(0, 1));
     _draw(

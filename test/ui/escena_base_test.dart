@@ -107,6 +107,20 @@ void main() {
     await expectSceneAnimates(tester, UiSceneKind.acercar);
   });
 
+  testWidgets('un trazo que aún no empieza a escribirse no deja ningún punto', (tester) async {
+    // En t = 0 el visto del celular nuevo de «cambio» no ha empezado.
+    final start = await sceneFrame(tester, UiSceneKind.cambio, 0);
+    final beforeCheck = await sceneFrame(tester, UiSceneKind.cambio, 0.39);
+    final afterCheck = await sceneFrame(tester, UiSceneKind.cambio, 0.6);
+    expect(changedPixels(beforeCheck, afterCheck), greaterThan(40));
+    // Píxel donde empieza el visto del celular nuevo (226, 98): en t = 0 es
+    // del círculo turquesa, no del trazo claro.
+    int pixel(List<int> rgba, int x, int y) => (y * 320 + x) * 4;
+    final i = pixel(start, 226, 98);
+    final j = pixel(afterCheck, 226, 98);
+    expect([start[i], start[i + 1], start[i + 2]], isNot(equals([afterCheck[j], afterCheck[j + 1], afterCheck[j + 2]])));
+  });
+
   testWidgets('los rótulos del dibujo cambian según quién mira', (tester) async {
     final teacher = await sceneFrame(tester, UiSceneKind.acercar, UiScene.restT);
     final student = await sceneFrame(tester, UiSceneKind.acercar, UiScene.restT, studentView: true);
