@@ -12,6 +12,7 @@ export 'components/ui_pin.dart';
 export 'components/ui_progress.dart';
 export 'components/ui_rows.dart';
 export 'components/ui_status.dart';
+export 'components/scenes/ui_scene.dart';
 export 'components/ui_two_phones.dart';
 export 'tokens/ui_colors.dart';
 export 'tokens/ui_metrics.dart';
