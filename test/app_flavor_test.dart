@@ -30,7 +30,7 @@ void main() {
     });
 
     testWidgets(
-      'Flavor Docente monta CoursesDashboardScreen con icono de diagnóstico',
+      'Flavor Docente monta CoursesDashboardScreen con botón de ayuda',
       (WidgetTester tester) async {
         await tester.pumpWidget(
           AsistenciaApp(
@@ -48,7 +48,7 @@ void main() {
     );
 
     testWidgets(
-      'Flavor Estudiante monta StudentCoursesScreen con icono de diagnóstico',
+      'Flavor Estudiante monta StudentCoursesScreen con botón de ayuda',
       (WidgetTester tester) async {
         await tester.pumpWidget(
           AsistenciaApp(
@@ -66,7 +66,7 @@ void main() {
     );
 
     testWidgets(
-      'Icono de diagnóstico abre DesktopHardwareDiagnosticDialog en escritorio',
+      'El botón de ayuda abre el centro de ayuda del docente',
       (WidgetTester tester) async {
         await tester.pumpWidget(
           AsistenciaApp(
