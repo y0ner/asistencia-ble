@@ -1,6 +1,9 @@
 import 'package:asistencia_uniguajira/app/app_flavor.dart';
 import 'package:asistencia_uniguajira/app/asistencia_app.dart';
+import 'package:asistencia_uniguajira/data/services/first_run_store.dart';
 import 'package:asistencia_uniguajira/features/shared/hardware_diagnostic_dialog.dart';
+import 'package:asistencia_uniguajira/features/shared/how_it_works/help_center_screen.dart';
+import 'package:asistencia_uniguajira/features/shared/how_it_works/how_it_works_content.dart';
 import 'package:asistencia_uniguajira/features/student/student_courses_screen.dart';
 import 'package:asistencia_uniguajira/features/teacher/courses_dashboard_screen.dart';
 import 'package:asistencia_uniguajira/ui/ui.dart';
@@ -21,54 +24,66 @@ void main() {
 
       expect(AppFlavor.docente.homeScreen, isA<CoursesDashboardScreen>());
       expect(AppFlavor.estudiante.homeScreen, isA<StudentCoursesScreen>());
+
+      expect(AppFlavor.docente.helpContent, HowItWorksContent.teacher);
+      expect(AppFlavor.estudiante.helpContent, HowItWorksContent.student);
     });
 
     testWidgets(
-      'Flavor Docente monta CoursesDashboardScreen con icono de diagnóstico',
+      'Flavor Docente monta CoursesDashboardScreen con botón de ayuda',
       (WidgetTester tester) async {
-        await tester.pumpWidget(const AsistenciaApp(flavor: AppFlavor.docente));
+        await tester.pumpWidget(
+          AsistenciaApp(
+            flavor: AppFlavor.docente,
+            firstRunStore: MemoryFirstRunStore(seen: true),
+          ),
+        );
         await tester.pump();
 
         expect(find.byType(CoursesDashboardScreen), findsOneWidget);
         expect(find.byType(StudentCoursesScreen), findsNothing);
         expect(find.text('Asistencia'), findsOneWidget);
-        expect(find.byIcon(Icons.tune_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.help_outline_rounded), findsOneWidget);
       },
     );
 
     testWidgets(
-      'Flavor Estudiante monta StudentCoursesScreen con icono de diagnóstico',
+      'Flavor Estudiante monta StudentCoursesScreen con botón de ayuda',
       (WidgetTester tester) async {
         await tester.pumpWidget(
-          const AsistenciaApp(flavor: AppFlavor.estudiante),
+          AsistenciaApp(
+            flavor: AppFlavor.estudiante,
+            firstRunStore: MemoryFirstRunStore(seen: true),
+          ),
         );
         await tester.pump();
 
         expect(find.byType(StudentCoursesScreen), findsOneWidget);
         expect(find.byType(CoursesDashboardScreen), findsNothing);
         expect(find.text('Asistencia'), findsOneWidget);
-        expect(find.byIcon(Icons.tune_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.help_outline_rounded), findsOneWidget);
       },
     );
 
     testWidgets(
-      'Icono de diagnóstico abre DesktopHardwareDiagnosticDialog en escritorio',
+      'El botón de ayuda abre el centro de ayuda del docente',
       (WidgetTester tester) async {
-        await tester.pumpWidget(const AsistenciaApp(flavor: AppFlavor.docente));
+        await tester.pumpWidget(
+          AsistenciaApp(
+            flavor: AppFlavor.docente,
+            firstRunStore: MemoryFirstRunStore(seen: true),
+          ),
+        );
         await tester.pump();
 
-        await tester.tap(find.byIcon(Icons.tune_rounded));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300));
-
-        expect(find.byType(DesktopHardwareDiagnosticDialog), findsOneWidget);
-        expect(find.text('Permisos del celular'), findsOneWidget);
-        expect(find.text('Entendido'), findsOneWidget);
-
-        await tester.tap(find.text('Entendido'));
+        await tester.tap(find.byIcon(Icons.help_outline_rounded));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
-        expect(find.byType(DesktopHardwareDiagnosticDialog), findsNothing);
+
+        expect(find.byType(HelpCenterScreen), findsOneWidget);
+        final screen =
+            tester.widget<HelpCenterScreen>(find.byType(HelpCenterScreen));
+        expect(screen.content, HowItWorksContent.teacher);
       },
     );
   });

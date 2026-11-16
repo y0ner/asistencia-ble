@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../features/shared/how_it_works/how_it_works_content.dart';
 import '../features/student/student_courses_screen.dart';
 import '../features/teacher/courses_dashboard_screen.dart';
 
@@ -25,6 +26,16 @@ enum AppFlavor {
         return const CoursesDashboardScreen();
       case AppFlavor.estudiante:
         return const StudentCoursesScreen();
+    }
+  }
+
+  /// Contenido de ayuda y recorrido según el rol.
+  HowItWorksContent get helpContent {
+    switch (this) {
+      case AppFlavor.docente:
+        return HowItWorksContent.teacher;
+      case AppFlavor.estudiante:
+        return HowItWorksContent.student;
     }
   }
 }

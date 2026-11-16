@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../data/services/app_permissions_service.dart';
+import '../data/services/first_run_store.dart';
+import '../features/shared/how_it_works/how_it_works_gate.dart';
 import '../features/shared/permissions_gate.dart';
 import '../ui/ui_theme.dart';
 import 'app_flavor.dart';
@@ -10,9 +12,11 @@ class AsistenciaApp extends StatelessWidget {
   const AsistenciaApp({
     super.key,
     required this.flavor,
+    this.firstRunStore = const PrefsFirstRunStore(),
   });
 
   final AppFlavor flavor;
+  final FirstRunStore firstRunStore;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +28,11 @@ class AsistenciaApp extends StatelessWidget {
       themeMode: ThemeMode.system,
       home: PermissionsGate(
         service: AppPermissionsService(needsCamera: flavor == AppFlavor.estudiante),
-        child: flavor.homeScreen,
+        child: HowItWorksGate(
+          content: flavor.helpContent,
+          store: firstRunStore,
+          child: flavor.homeScreen,
+        ),
       ),
     );
   }

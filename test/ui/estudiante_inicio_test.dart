@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:asistencia_uniguajira/core/models/student_enrollment_model.dart';
 import 'package:asistencia_uniguajira/data/local/app_database.dart';
+import 'package:asistencia_uniguajira/features/shared/how_it_works/help_center_screen.dart';
+import 'package:asistencia_uniguajira/features/shared/how_it_works/how_it_works_content.dart';
 import 'package:asistencia_uniguajira/features/student/student_courses_screen.dart';
 import 'package:asistencia_uniguajira/ui/ui.dart';
 import 'package:flutter/material.dart';
@@ -117,7 +119,7 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.byType(StudentCoursesScreen), findsOneWidget);
         expect(find.byType(UiBrandHeader), findsOneWidget);
-        expect(find.byTooltip('Ajustes y diagnóstico'), findsOneWidget);
+        expect(find.byTooltip('Ayuda'), findsOneWidget);
         expect(find.text('¿A qué clase llegaste?'), findsOneWidget);
         expect(find.text('Aún no estás en ninguna clase'), findsOneWidget);
         expect(
@@ -142,6 +144,29 @@ void main() {
         expect(find.text('¿A qué clase llegaste?'), findsOneWidget);
         expect(find.text('Aún no estás en ninguna clase'), findsOneWidget);
         expect(find.text('Unirme a una clase'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'tocar el botón «Ayuda» abre HelpCenterScreen con contenido del estudiante',
+      (tester) async {
+        await _pumpScreen(
+          tester,
+          theme: UiTheme.light(),
+          database: database,
+        );
+
+        await tester.tap(find.byTooltip('Ayuda'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.byType(HelpCenterScreen), findsOneWidget);
+        expect(
+          tester
+              .widget<HelpCenterScreen>(find.byType(HelpCenterScreen))
+              .content,
+          HowItWorksContent.student,
+        );
       },
     );
   });
