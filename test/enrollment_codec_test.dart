@@ -263,7 +263,9 @@ void main() {
       final echo = BlePacketCodec.verifyTeacherEchoBytes(
         packet16: response,
         expectedCourseId: _courseId,
+        expectedSessionPin: 42,
         sharedSecretHex: _shared,
+        currentTimeTick: 100,
       );
       expect(echo.isValid, isFalse);
       expect(echo.failureReason, contains('inscripción'));
@@ -279,9 +281,10 @@ void main() {
       );
       final echo = BlePacketCodec.buildTeacherEchoBytes(
         courseId: _courseId,
-        sessionId: 's1',
+        sessionPin: 47,
         bitmap8: BlePacketCodec.createEmptyBitmap8(),
         sharedSecretHex: _shared,
+        timeTick: 100,
       );
       expect(EnrollmentPacketCodec.isEnrollmentPacket(beacon), isFalse);
       expect(EnrollmentPacketCodec.isEnrollmentPacket(echo), isFalse);

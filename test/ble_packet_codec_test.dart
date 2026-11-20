@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 const String _secret =
     '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const String _courseId = 'course-1';
-const String _sessionId = 'session-1';
 
 void main() {
   group('ventana temporal y hashes cortos', () {
@@ -40,18 +39,13 @@ void main() {
     });
 
     test(
-      'courseHash16 y sessionShortId son los dos primeros bytes SHA-256',
+      'courseHash16 son los dos primeros bytes SHA-256',
       () {
         final courseDigest = sha256.convert(utf8.encode(_courseId)).bytes;
-        final sessionDigest = sha256.convert(utf8.encode(_sessionId)).bytes;
 
         expect(
           BlePacketCodec.computeCourseHash16(_courseId),
           (courseDigest[0] << 8) | courseDigest[1],
-        );
-        expect(
-          BlePacketCodec.computeSessionShortId(_sessionId),
-          (sessionDigest[0] << 8) | sessionDigest[1],
         );
         expect(
           BlePacketCodec.computeCourseHash16(_courseId),
@@ -285,9 +279,10 @@ void main() {
       );
       final packet = BlePacketCodec.buildTeacherEchoBytes(
         courseId: _courseId,
-        sessionId: _sessionId,
+        sessionPin: 42,
         bitmap8: bitmap,
         sharedSecretHex: _secret.toUpperCase(),
+        timeTick: 100,
       );
 
       expect(packet, hasLength(16));
@@ -296,15 +291,14 @@ void main() {
         ByteData.sublistView(packet).getUint16(0, Endian.big),
         BlePacketCodec.computeCourseHash16(_courseId),
       );
-      expect(
-        packet[3],
-        (BlePacketCodec.computeSessionShortId(_sessionId) >> 8) & 0xFF,
-      );
+      expect(packet[3], 42);
 
       final result = BlePacketCodec.verifyTeacherEchoBytes(
         packet16: packet,
         expectedCourseId: _courseId,
+        expectedSessionPin: 42,
         sharedSecretHex: _secret,
+        currentTimeTick: 100,
       );
       expect(result.isValid, isTrue);
       expect(result.bitmap8, bitmap);
@@ -317,9 +311,10 @@ void main() {
     test('rechaza firma, curso, longitud y paquetes de estudiante', () {
       final packet = BlePacketCodec.buildTeacherEchoBytes(
         courseId: _courseId,
-        sessionId: _sessionId,
+        sessionPin: 42,
         bitmap8: BlePacketCodec.createEmptyBitmap8(),
         sharedSecretHex: _secret,
+        timeTick: 100,
       );
 
       final broken = Uint8List.fromList(packet);
@@ -328,7 +323,9 @@ void main() {
         BlePacketCodec.verifyTeacherEchoBytes(
           packet16: broken,
           expectedCourseId: _courseId,
+          expectedSessionPin: 42,
           sharedSecretHex: _secret,
+          currentTimeTick: 100,
         ).isValid,
         isFalse,
       );
@@ -336,7 +333,9 @@ void main() {
         BlePacketCodec.verifyTeacherEchoBytes(
           packet16: packet,
           expectedCourseId: 'otro-curso',
+          expectedSessionPin: 42,
           sharedSecretHex: _secret,
+          currentTimeTick: 100,
         ).isValid,
         isFalse,
       );
@@ -344,7 +343,9 @@ void main() {
         BlePacketCodec.verifyTeacherEchoBytes(
           packet16: Uint8List(15),
           expectedCourseId: _courseId,
+          expectedSessionPin: 42,
           sharedSecretHex: _secret,
+          currentTimeTick: 100,
         ).isValid,
         isFalse,
       );
@@ -360,7 +361,9 @@ void main() {
         BlePacketCodec.verifyTeacherEchoBytes(
           packet16: studentPacket,
           expectedCourseId: _courseId,
+          expectedSessionPin: 42,
           sharedSecretHex: _secret,
+          currentTimeTick: 100,
         ).isValid,
         isFalse,
       );

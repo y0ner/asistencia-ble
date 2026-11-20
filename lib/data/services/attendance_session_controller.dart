@@ -549,6 +549,7 @@ class AttendanceSessionController {
             session: resumable,
             course: course,
             closedAt: closedAt,
+            forHistoricalSession: true,
           );
           if (_disposed) {
             throw StateError('AttendanceSessionController ya fue liberado.');
@@ -836,14 +837,10 @@ class AttendanceSessionController {
     required CourseModel course,
     required DateTime closedAt,
     Uint8List? initialBitmap8,
+    bool forHistoricalSession = false,
   }) async {
     final closedAtIso = closedAt.toIso8601String();
 
-    final students = await database.getStudentsByCourse(course.id);
-    students.sort(
-      (StudentModel left, StudentModel right) =>
-          left.bitIndex.compareTo(right.bitIndex),
-    );
     final storedRecords = await database.getAttendanceRecordsBySession(
       session.id,
     );
@@ -851,6 +848,32 @@ class AttendanceSessionController {
       for (final AttendanceRecordModel record in storedRecords)
         record.studentId: record,
     };
+
+    final List<StudentModel> students;
+    if (forHistoricalSession) {
+      final sessionStartedAt = DateTime.parse(session.startedAt);
+      final allStudents = await database.getAllStudentsByCourse(course.id);
+      students = allStudents.where((StudentModel student) {
+        if (recordsByStudent.containsKey(student.id)) {
+          return true;
+        }
+        if (student.enrolledAt == null) {
+          return true;
+        }
+        final enrolledAt = DateTime.tryParse(student.enrolledAt!);
+        if (enrolledAt == null) {
+          return true;
+        }
+        return enrolledAt.isBefore(sessionStartedAt) ||
+            enrolledAt.isAtSameMomentAs(sessionStartedAt);
+      }).toList();
+    } else {
+      students = await database.getStudentsByCourse(course.id);
+    }
+    students.sort(
+      (StudentModel left, StudentModel right) =>
+          left.bitIndex.compareTo(right.bitIndex),
+    );
 
     var bitmap = initialBitmap8 != null
         ? Uint8List.fromList(initialBitmap8)
@@ -986,10 +1009,15 @@ class AttendanceSessionController {
     _ensureNotDisposed();
     _validatePin(sessionPin);
 
+    final now = nowOverride ?? DateTime.now();
+    final currentTimeTick = BlePacketCodec.computeTimeTick(now);
+
     final verification = BlePacketCodec.verifyTeacherEchoBytes(
       packet16: teacherPacket16,
       expectedCourseId: enrollment.courseId,
+      expectedSessionPin: sessionPin,
       sharedSecretHex: enrollment.sharedSecret,
+      currentTimeTick: currentTimeTick,
     );
     if (!verification.isValid) {
       return StudentConfirmationOutcome(
@@ -1015,13 +1043,11 @@ class AttendanceSessionController {
       );
     }
 
-    final now = nowOverride ?? DateTime.now();
-    final timeTick = BlePacketCodec.computeTimeTick(now);
     final verifyCode = BlePacketCodec.generateAttendanceVerifyCode(
       courseId: enrollment.courseId,
       studentCode: enrollment.studentCode,
       bitIndex: enrollment.bitIndex,
-      timeTick: timeTick,
+      timeTick: currentTimeTick,
       secretHex: enrollment.deviceSecret,
     );
     return StudentConfirmationOutcome(
@@ -1119,9 +1145,10 @@ class AttendanceSessionController {
       try {
         await _bleService.startTeacherEcho(
           courseId: state.course.id,
-          sessionId: state.session.id,
+          sessionPin: state.pin,
           bitmap8: bitmap,
           sharedSecretHex: state.course.courseSecret,
+          timeTick: BlePacketCodec.computeTimeTick(DateTime.now()),
         );
         _scheduleEchoTimer();
       } catch (error) {

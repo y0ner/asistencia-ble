@@ -227,6 +227,10 @@ void main() {
         expect(records.first.studentId, student0.id);
         expect(records.first.recordedAt, t1.toIso8601String());
         expect(records.first.rssiAvg, -60.0);
+
+        // Comprobar que el eco no se volvió a emitir en las 49 recepciones repetidas:
+        // 1 anuncio del inicio de sesión + 1 anuncio de la primera detección.
+        expect(ble.advertisements, hasLength(2));
       },
     );
 
@@ -499,6 +503,114 @@ void main() {
           () => ctrl.startTeacherSession(course: course, customPin: 42),
           throwsStateError,
         );
+      },
+    );
+
+    test(
+      'liberar el controlador durante startTeacherSession no deja el aire escaneando ni produce anuncios tras dispose',
+      () async {
+        final ctrl = AttendanceSessionController(database: database, bleService: ble);
+        final startFuture = ctrl.startTeacherSession(course: course, customPin: 42);
+        final disposeFuture = ctrl.dispose();
+
+        try {
+          await startFuture;
+        } on StateError {
+          // Esperado si dispose ocurrió antes de que complete el inicio.
+        }
+        await disposeFuture;
+
+        final adsCount = ble.advertisements.length;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(ble.isScanning, isFalse);
+        expect(ble.isAdvertising, isFalse);
+        expect(ble.advertisements.length, adsCount);
+      },
+    );
+
+    test(
+      'acta de sesion vieja excluye estudiantes inscritos despues e incluye como presentes a retirados con registro',
+      () async {
+        final ayer = DateTime(2026, 11, 19, 9, 0, 0);
+        final hoy = DateTime(2026, 11, 20, 8, 0, 0);
+
+        final sesionAyer = await controller.startTeacherSession(
+          course: course,
+          customPin: 33,
+          nowOverride: ayer,
+        );
+
+        // student1 (matriculado antes de ayer) asiste a sesionAyer
+        await database.insertAttendanceRecord(
+          AttendanceRecordModel(
+            id: 'rec-student1-ayer',
+            sessionId: sesionAyer.session.id,
+            studentId: student1.id,
+            bitIndex: student1.bitIndex,
+            method: AppConstants.attendanceMethodBleHmac,
+            recordedAt: ayer.add(const Duration(minutes: 5)).toIso8601String(),
+          ),
+        );
+
+        // Luego de ayer, student1 se retira del curso
+        await database.retireStudent(
+          studentId: student1.id,
+          retiredAt: '2026-11-19T18:00:00.000Z',
+          newSecretHex: '9999999999999999999999999999999999999999999999999999999999999999',
+        );
+
+        // Y studentNuevo se inscribe después de que sesionAyer inició (hoy temprano)
+        final studentNuevo = StudentModel(
+          id: 'student-nuevo',
+          courseId: course.id,
+          studentCode: '0182120099',
+          fullName: 'ESTUDIANTE NUEVO',
+          email: '0182120099${AppConstants.institutionalDomain}',
+          bitIndex: 10,
+          personalSecret: _studentSecret0,
+          enrolledAt: '2026-11-20T06:00:00.000Z',
+        );
+        await database.insertStudent(studentNuevo);
+
+        await controller.dispose();
+        controller = AttendanceSessionController(
+          database: database,
+          bleService: ble,
+        );
+
+        // Hoy se inicia sesión: sesionAyer se cierra y se genera su acta histórica
+        await controller.startTeacherSession(
+          course: course,
+          customPin: 44,
+          nowOverride: hoy,
+        );
+
+        final actaJson = await database.getSessionActaJson(sesionAyer.session.id);
+        expect(actaJson, isNotNull);
+        final actaMap = jsonDecode(actaJson!) as Map<String, dynamic>;
+        final records = (actaMap['records'] as List<dynamic>)
+            .cast<Map<String, dynamic>>();
+
+        // studentNuevo NO debe aparecer en el acta de sesionAyer
+        expect(
+          records.any((r) => r['studentCode'] == studentNuevo.studentCode),
+          isFalse,
+        );
+
+        // student1 (retirado después con registro) SÍ debe aparecer como presente
+        final recStudent1 = records.firstWhere(
+          (r) => r['studentCode'] == student1.studentCode,
+        );
+        expect(recStudent1['status'], AppConstants.attendanceStatusPresent);
+
+        // El bitmap del acta de ayer refleja el bit de student1
+        final bitmapHex = actaMap['bitmapHex'] as String;
+        final bitmapBytes = Uint8List(8);
+        for (var i = 0; i < 8; i++) {
+          bitmapBytes[i] = int.parse(bitmapHex.substring(i * 2, i * 2 + 2), radix: 16);
+        }
+        expect(BlePacketCodec.isStudentBitSet(bitmapBytes, student1.bitIndex), isTrue);
       },
     );
   });
