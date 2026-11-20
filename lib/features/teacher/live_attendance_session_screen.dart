@@ -65,6 +65,7 @@ class _LiveAttendanceSessionScreenState
   late final BlePermissionService _permissionService;
   late final AttendanceSessionController _controller;
   late final bool _ownsController;
+  late final bool _ownsBleService;
 
   bool _isStarting = true;
   bool _isClosing = false;
@@ -80,6 +81,9 @@ class _LiveAttendanceSessionScreenState
   StreamSubscription<BleRuntimeIssue>? _bleIssuesSub;
   Timer? _periodicRefreshTimer;
 
+  bool _reloadPending = false;
+  bool _reloadQueued = false;
+
   _AttendanceFilter _selectedFilter = _AttendanceFilter.all;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -89,6 +93,7 @@ class _LiveAttendanceSessionScreenState
     super.initState();
     unawaited(WakelockPlus.enable());
     _database = widget.database ?? AppDatabase.instance;
+    _ownsBleService = widget.bleService == null;
     _bleService = widget.bleService ?? BleAttendanceService();
     _permissionService =
         widget.permissionService ?? BlePermissionService();
@@ -113,8 +118,16 @@ class _LiveAttendanceSessionScreenState
     _periodicRefreshTimer?.cancel();
     _bleEventsSub?.cancel();
     _bleIssuesSub?.cancel();
+    _reloadPending = false;
+    _reloadQueued = false;
     if (_ownsController) {
-      _controller.dispose();
+      unawaited(_controller.dispose().whenComplete(() {
+        if (_ownsBleService) {
+          unawaited(_bleService.dispose());
+        }
+      }));
+    } else if (_ownsBleService) {
+      unawaited(_bleService.dispose());
     }
     super.dispose();
   }
@@ -128,18 +141,18 @@ class _LiveAttendanceSessionScreenState
 
     try {
       final permResult = await _permissionService.ensureReady();
+      if (!mounted) return;
       if (!permResult.isReady) {
-        if (mounted) {
-          setState(() {
-            _permissionResult = permResult;
-            _isStarting = false;
-          });
-        }
+        setState(() {
+          _permissionResult = permResult;
+          _isStarting = false;
+        });
         return;
       }
 
       final studentsList =
           await _database.getStudentsByCourse(widget.course.id);
+      if (!mounted) return;
       studentsList.sort(
         (StudentModel a, StudentModel b) => a.bitIndex.compareTo(b.bitIndex),
       );
@@ -149,23 +162,23 @@ class _LiveAttendanceSessionScreenState
           course: widget.course,
           customPin: widget.customPin,
         );
+        if (!mounted) return;
       }
 
       final active = _controller.state;
       if (active != null) {
         final records =
             await _database.getAttendanceRecordsBySession(active.sessionId);
+        if (!mounted) return;
         _recordsByStudentId = <String, AttendanceRecordModel>{
           for (final AttendanceRecordModel r in records) r.studentId: r,
         };
       }
 
+      if (!mounted) return;
+
       _bleEventsSub = _bleService.packetEvents.listen((_) {
-        Future<void>.delayed(const Duration(milliseconds: 100), () {
-          if (mounted) {
-            _reloadRecords();
-          }
-        });
+        _scheduleBleReload();
       });
 
       _bleIssuesSub = _bleService.issues.listen((issue) {
@@ -199,6 +212,31 @@ class _LiveAttendanceSessionScreenState
         });
       }
     }
+  }
+
+  void _scheduleBleReload() {
+    if (!mounted || _isClosing) return;
+    if (_reloadPending) {
+      _reloadQueued = true;
+      return;
+    }
+    _reloadPending = true;
+    Future<void>.delayed(const Duration(milliseconds: 100), () async {
+      if (!mounted) {
+        _reloadPending = false;
+        _reloadQueued = false;
+        return;
+      }
+      try {
+        await _reloadRecords();
+      } finally {
+        _reloadPending = false;
+        if (_reloadQueued && mounted && !_isClosing) {
+          _reloadQueued = false;
+          _scheduleBleReload();
+        }
+      }
+    });
   }
 
   Future<void> _reloadRecords() async {
