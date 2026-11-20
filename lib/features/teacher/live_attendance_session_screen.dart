@@ -559,16 +559,14 @@ class _LiveAttendanceSessionScreenState
     }
 
     if (_permissionResult != null && !_permissionResult!.isReady) {
-      final perm = _permissionResult!;
-      final isBluetoothOff = perm.onlyBluetoothOff;
-      final title =
-          isBluetoothOff ? 'El Bluetooth está apagado' : 'Falta un permiso';
-      // El texto lo decide la pantalla: el del servicio repite el título.
-      final message = isBluetoothOff
-          ? 'Enciéndelo para que tus estudiantes puedan registrarse.'
-          : perm.requiresAppSettings
-              ? 'Abre los ajustes y permite «Dispositivos cercanos» para tomar asistencia.'
-              : 'Permite el acceso a «Dispositivos cercanos» para tomar asistencia.';
+      final advice = blePermissionAdvice(
+        _permissionResult,
+        'tomar asistencia',
+        bluetoothMessage:
+            'Enciéndelo para que tus estudiantes puedan registrarse.',
+      );
+      final isBluetoothOff = advice.isBluetoothOff;
+      final isLocationOff = advice.isLocationOff;
 
       return UiPage(
         header: UiTopBar(
@@ -592,25 +590,27 @@ class _LiveAttendanceSessionScreenState
                   child: Icon(
                     isBluetoothOff
                         ? Icons.bluetooth_disabled_rounded
-                        : Icons.security_update_warning_rounded,
+                        : isLocationOff
+                            ? Icons.location_off_rounded
+                            : Icons.security_update_warning_rounded,
                     size: 40,
                     color: c.tintText,
                   ),
                 ),
                 const SizedBox(height: UiSpace.xl),
                 Text(
-                  title,
+                  advice.title,
                   textAlign: TextAlign.center,
                   style: UiText.h2.copyWith(color: c.ink),
                 ),
                 const SizedBox(height: UiSpace.sm),
                 Text(
-                  message,
+                  advice.message,
                   textAlign: TextAlign.center,
                   style: UiText.body.copyWith(color: c.muted),
                 ),
                 const SizedBox(height: UiSpace.xl),
-                if (perm.requiresAppSettings) ...[
+                if (advice.requiresSettings) ...[
                   UiButton(
                     label: 'Abrir ajustes',
                     onPressed: () async {
@@ -627,12 +627,19 @@ class _LiveAttendanceSessionScreenState
                     },
                   ),
                   const SizedBox(height: UiSpace.sm),
+                ] else if (isLocationOff) ...[
+                  UiButton(
+                    label: 'Revisar de nuevo',
+                    onPressed: _initializeSession,
+                  ),
+                  const SizedBox(height: UiSpace.sm),
                 ],
-                UiButton(
-                  label: 'Volver a intentar',
-                  variant: UiButtonVariant.outline,
-                  onPressed: _initializeSession,
-                ),
+                if (!isLocationOff)
+                  UiButton(
+                    label: 'Volver a intentar',
+                    variant: UiButtonVariant.outline,
+                    onPressed: _initializeSession,
+                  ),
               ],
             ),
           ),

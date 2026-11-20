@@ -203,28 +203,44 @@ void main() {
     expect(host.state.pending, isEmpty, reason: 'No debe salir en Por aprobar ni en conflictos');
   });
 
-  test('estudiante fuera de la lista que pide dos veces con claves distintas: el host tiene una sola solicitud en espera', () async {
+  test('dos teléfonos con el mismo código: queda una tarjeta estable y el teléfono desplazado recibe rechazada', () async {
     await openEnrollment();
 
     final phone1 = newPhone(keyStore: MemoryEnrollmentKeyStore());
     final phone2 = newPhone(keyStore: MemoryEnrollmentKeyStore());
 
-    unawaited(phone1.join(invite, '0182120099'));
+    final f1 = phone1.join(invite, '0182120099');
     await waitUntil(() => host.state.pending.isNotEmpty, reason: 'primera solicitud en espera');
     expect(host.state.pending.length, 1);
     final firstReqId = host.state.pending.single.requestId;
 
-    unawaited(phone2.join(invite, '0182120099'));
-    await waitUntil(() => host.state.pending.isNotEmpty && host.state.pending.single.requestId != firstReqId,
-        reason: 'segunda solicitud reemplaza a la anterior');
+    final f2 = phone2.join(invite, '0182120099');
+    await waitUntil(
+      () => host.state.pending.isNotEmpty && host.state.pending.single.requestId != firstReqId,
+      reason: 'segunda solicitud reemplaza a la anterior',
+    );
 
     expect(host.state.pending.length, 1, reason: 'Solo debe quedar una solicitud para ese código');
     expect(host.state.pending.single.studentCode, '0182120099');
-    await phone1.client.cancel();
-    await phone2.client.cancel();
+
+    // El teléfono 1 desplazado debe recibir «rechazada» y terminar su flujo:
+    final updates1 = await f1;
+    expect(updates1.last.phase, EnrollmentClientPhase.rejected);
+
+    // Tras el rechazo del teléfono 1, la tarjeta del teléfono 2 sigue estable en espera:
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(host.state.pending.length, 1);
+    expect(host.state.pending.single.requestId, isNot(equals(firstReqId)));
+
+    // El docente puede aprobar la solicitud estable del teléfono 2:
+    final approved = await host.approve(host.state.pending.single.requestId, fullName: 'Carlos');
+    expect(approved.studentCode, '0182120099');
+
+    final updates2 = await f2;
+    expect(updates2.last.phase, EnrollmentClientPhase.accepted);
   });
 
-  test('una solicitud en espera desaparece después de pendingTtl (reloj falso) y approve lanza StateError', () async {
+  test('una solicitud en espera no vence mientras el teléfono sigue anunciando aunque pase pendingTtl, y vence cuando deja de anunciar', () async {
     var currentTime = DateTime(2026, 11, 1, 8, 0, 0);
     final timedHost = EnrollmentHostService(
       course: _course,
@@ -244,8 +260,19 @@ void main() {
     expect(timedHost.state.pending.length, 1);
     final reqId = timedHost.state.pending.single.requestId;
 
-    // Avanzar reloj simulado más allá de pendingTtl:
-    currentTime = currentTime.add(const Duration(seconds: 91));
+    // Avanzar reloj simulado más allá de pendingTtl (90s):
+    currentTime = currentTime.add(const Duration(seconds: 95));
+
+    // Mientras el teléfono sigue anunciando fragmentos, la solicitud NO debe vencer:
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(timedHost.state.pending, isNotEmpty, reason: 'no debe vencer mientras el teléfono siga anunciando');
+    expect(timedHost.state.pending.single.requestId, reqId);
+
+    // El estudiante cancela (deja de anunciar fragmentos):
+    await phone.client.cancel();
+
+    // Avanzar reloj simulado más allá de pendingTtl desde que dejó de anunciar:
+    currentTime = currentTime.add(const Duration(seconds: 95));
 
     // El temporizador de respuestas descarta la solicitud vencida:
     await waitUntil(() => timedHost.state.pending.isEmpty, reason: 'solicitud vencida descartada');
@@ -256,7 +283,6 @@ void main() {
       throwsA(isA<StateError>().having((e) => e.message, 'message', contains('ya no está disponible'))),
     );
 
-    await phone.client.cancel();
     await timedHost.dispose();
   });
 
@@ -287,7 +313,7 @@ void main() {
     await Future.wait([f1, f2]);
   });
 
-  test('start() con startScan que lanza: relanza y luego stop() deja todo limpio', () async {
+  test('start() con startScan que lanza: relanza y luego stop() deja todo limpio sin aceptar paquetes posteriores', () async {
     final failingBle = _FailingBle(shouldThrowScan: true);
     final brokenHost = EnrollmentHostService(
       course: _course,
@@ -295,11 +321,26 @@ void main() {
       bleService: failingBle,
     );
 
-    expect(() => brokenHost.start(), throwsException);
+    await expectLater(brokenHost.start(), throwsA(isA<Exception>()));
 
     await brokenHost.stop();
     expect(brokenHost.isRunning, isFalse);
     expect(brokenHost.state.pending, isEmpty);
+
+    // Un paquete de solicitud que llega después de stop() no crea ninguna solicitud en espera:
+    final pair = await EnrollmentCrypto.generateKeyPair();
+    final fragments = EnrollmentPacketCodec.buildRequestFragments(
+      courseId: _course.id,
+      requestId: 5555,
+      studentCode: '0182120099',
+      studentPublicKeyHex: pair.publicKeyHex,
+      sharedSecretHex: _secret,
+    );
+    for (final fragment in fragments) {
+      failingBle.injectSimulatedPacket(packet16: fragment, rssi: -50);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(brokenHost.state.pending, isEmpty, reason: 'paquetes tras stop() no deben crear solicitudes en espera');
 
     await brokenHost.dispose();
   });
