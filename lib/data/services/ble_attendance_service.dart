@@ -65,7 +65,10 @@ class BleAttendanceService {
   BleAttendanceService({
     FlutterBlePeripheral? peripheral,
     this.minRssiDbm = AppConstants.minRssiDbm,
-  }) : _peripheral = peripheral ?? FlutterBlePeripheral();
+    this.duplicateWindow = const Duration(seconds: 2),
+    DateTime Function()? now,
+  })  : _peripheral = peripheral ?? FlutterBlePeripheral(),
+        _now = now ?? DateTime.now;
 
   final FlutterBlePeripheral _peripheral;
   final StreamController<BlePacketEvent> _packetController =
@@ -75,6 +78,12 @@ class BleAttendanceService {
 
   /// Umbral mínimo de RSSI aceptado por el radar.
   final int minRssiDbm;
+
+  /// Ventana de tiempo durante la cual se descartan paquetes idénticos.
+  final Duration duplicateWindow;
+
+  final DateTime Function() _now;
+  final Map<String, DateTime> _lastEmittedByPacket = <String, DateTime>{};
 
   StreamSubscription<List<ScanResult>>? _scanSubscription;
   StreamSubscription<BluetoothAdapterState>? _adapterSubscription;
@@ -141,6 +150,7 @@ class BleAttendanceService {
       await FlutterBluePlus.startScan(
         timeout: timeout,
         continuousUpdates: true,
+        oneByOne: true,
       );
     } catch (error) {
       await _scanSubscription?.cancel();
@@ -329,14 +339,25 @@ class BleAttendanceService {
     return completer.future;
   }
 
+  /// Procesa un paquete anunciado por la misma ruta que un resultado de escaneo,
+  /// aplicando validación de tamaño, umbral RSSI y filtro de duplicados.
+  @visibleForTesting
+  void debugHandleAdvertisedPacket(Uint8List packet16, int rssi) {
+    _emitIfNearby(packet16, rssi);
+  }
+
   /// Inyecta un paquete simulado para pruebas deterministas sin hardware BLE.
   ///
   /// Devuelve `true` solo si el paquete mide 16 bytes y supera el umbral RSSI.
-  bool injectSimulatedPacket({required Uint8List packet16, required int rssi}) {
+  bool injectSimulatedPacket({
+    required Uint8List packet16,
+    required int rssi,
+    bool filterDuplicates = false,
+  }) {
     if (_disposed || packet16.length != BlePacketCodec.packetLength) {
       return false;
     }
-    return _emitIfNearby(packet16, rssi);
+    return _emitIfNearby(packet16, rssi, filterDuplicates: filterDuplicates);
   }
 
   /// Inyecta una incidencia simulada para pruebas deterministas.
@@ -418,16 +439,51 @@ class BleAttendanceService {
     }
   }
 
-  bool _emitIfNearby(Uint8List packet16, int rssi) {
+  bool _emitIfNearby(
+    Uint8List packet16,
+    int rssi, {
+    bool filterDuplicates = true,
+  }) {
     if (_disposed ||
         packet16.length != BlePacketCodec.packetLength ||
         rssi < minRssiDbm) {
       return false;
     }
+
+    if (filterDuplicates) {
+      final key = BlePacketCodec.bytes16ToUuid(packet16);
+      final currentTime = _now();
+      final lastEmitted = _lastEmittedByPacket[key];
+
+      if (lastEmitted != null &&
+          currentTime.difference(lastEmitted) < duplicateWindow) {
+        return false;
+      }
+
+      _lastEmittedByPacket[key] = currentTime;
+      if (_lastEmittedByPacket.length > 256) {
+        _pruneOldPackets(currentTime);
+      }
+    }
+
     _packetController.add(
       BlePacketEvent(packet16: Uint8List.fromList(packet16), rssi: rssi),
     );
     return true;
+  }
+
+  void _pruneOldPackets(DateTime currentTime) {
+    _lastEmittedByPacket.removeWhere(
+      (_, DateTime time) => currentTime.difference(time) >= duplicateWindow,
+    );
+    if (_lastEmittedByPacket.length > 256) {
+      final sortedEntries = _lastEmittedByPacket.entries.toList()
+        ..sort((a, b) => a.value.compareTo(b.value));
+      final excess = sortedEntries.length - 256;
+      for (var i = 0; i < excess; i++) {
+        _lastEmittedByPacket.remove(sortedEntries[i].key);
+      }
+    }
   }
 
   void _ensureNotDisposed() {

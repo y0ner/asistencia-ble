@@ -222,4 +222,64 @@ void main() {
       },
     );
   });
+
+  group('BleAttendanceService - Criterios de Aceptación Brief R1-B', () {
+    test(
+      'el mismo paquete entregado 100 veces dentro de 2 s produce un evento; '
+      'pasado duplicateWindow produce otro',
+      () async {
+        var fakeNow = DateTime(2026, 11, 20, 10, 0, 0);
+        final service = BleAttendanceService(
+          duplicateWindow: const Duration(seconds: 2),
+          now: () => fakeNow,
+        );
+        addTearDown(service.dispose);
+
+        final events = <BlePacketEvent>[];
+        final sub = service.packetEvents.listen(events.add);
+        addTearDown(sub.cancel);
+
+        final packet = _packet(42);
+
+        // Entregado 100 veces dentro de la ventana de 2 segundos
+        for (var i = 0; i < 100; i++) {
+          service.debugHandleAdvertisedPacket(packet, -60);
+        }
+        await Future<void>.delayed(Duration.zero);
+        expect(events, hasLength(1));
+
+        // Avanzamos 1 segundo (aún dentro de la ventana de 2 segundos)
+        fakeNow = fakeNow.add(const Duration(seconds: 1));
+        service.debugHandleAdvertisedPacket(packet, -60);
+        await Future<void>.delayed(Duration.zero);
+        expect(events, hasLength(1));
+
+        // Avanzamos superando duplicateWindow desde la emisión anterior
+        fakeNow = fakeNow.add(const Duration(seconds: 2));
+        service.debugHandleAdvertisedPacket(packet, -60);
+        await Future<void>.delayed(Duration.zero);
+        expect(events, hasLength(2));
+      },
+    );
+
+    test('dos paquetes distintos entregados juntos producen dos eventos', () async {
+      final service = BleAttendanceService();
+      addTearDown(service.dispose);
+
+      final events = <BlePacketEvent>[];
+      final sub = service.packetEvents.listen(events.add);
+      addTearDown(sub.cancel);
+
+      final packet1 = _packet(1);
+      final packet2 = _packet(2);
+
+      service.debugHandleAdvertisedPacket(packet1, -60);
+      service.debugHandleAdvertisedPacket(packet2, -60);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(events, hasLength(2));
+      expect(events[0].packet16, packet1);
+      expect(events[1].packet16, packet2);
+    });
+  });
 }
