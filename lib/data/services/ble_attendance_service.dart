@@ -86,6 +86,21 @@ class BleAttendanceService {
   /// Umbral mínimo de RSSI aceptado por el radar.
   final int minRssiDbm;
 
+  /// Ajustes de emisión en Android. Sin ellos, Android usa su modo de bajo
+  /// consumo (≈1 anuncio por segundo, potencia media): un fragmento de
+  /// inscripción que solo dura 400 ms podía no salir nunca al aire y el
+  /// beacon tardaba en llegar. Baja latencia ≈ un anuncio cada 100 ms; no
+  /// conectable porque nadie se conecta por GATT.
+  static const AndroidAdvertiseSettings androidAdvertiseSettings =
+      AndroidAdvertiseSettings(
+    advertiseSettings: AdvertiseSettings(
+      advertiseMode: AdvertiseMode.advertiseModeLowLatency,
+      txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
+      connectable: false,
+      timeout: 0,
+    ),
+  );
+
   /// Ventana de tiempo durante la cual se descartan paquetes idénticos.
   final Duration duplicateWindow;
 
@@ -270,6 +285,7 @@ class BleAttendanceService {
         advertiseData: AdvertiseDataCore(
           serviceUuid: BlePacketCodec.bytes16ToUuid(packet16),
         ),
+        androidSettings: androidAdvertiseSettings,
       );
 
       // Confirmar que el periférico quedó activo
