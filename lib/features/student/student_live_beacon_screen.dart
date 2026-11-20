@@ -90,6 +90,7 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
   String? _bleWarning;
   BlePermissionResult? _permissionResult;
   bool _isProcessingPacket = false;
+  bool _isStartingBroadcast = false;
 
   @override
   void initState() {
@@ -142,69 +143,85 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
   // ---------------------------------------------------------------------------
 
   Future<void> _startBroadcasting(int pin) async {
-    final permResult = await _permissionService.ensureReady();
-    if (!permResult.isReady) {
-      if (mounted) {
+    if (_isStartingBroadcast) {
+      return;
+    }
+    _isStartingBroadcast = true;
+    if (mounted) {
+      setState(() {});
+    }
+
+    try {
+      final permResult = await _permissionService.ensureReady();
+      if (!mounted) return;
+      if (!permResult.isReady) {
         setState(() {
           _permissionResult = permResult;
           _bleWarning = permResult.failureMessage;
         });
+        return;
       }
-      return;
-    }
 
-    _permissionResult = null;
-    _sessionPin = pin;
-    _now = DateTime.now();
-    _broadcastingStartedAt = _now;
-    _currentTick = BlePacketCodec.computeTimeTick(_now);
-    _lastEmittedTick = _currentTick;
-    _lastTeacherRssi = null;
+      _permissionResult = null;
+      _sessionPin = pin;
+      _now = DateTime.now();
+      _broadcastingStartedAt = _now;
+      _currentTick = BlePacketCodec.computeTimeTick(_now);
+      _lastEmittedTick = _currentTick;
+      _lastTeacherRssi = null;
 
-    final packet = BlePacketCodec.buildStudentBeaconBytes(
-      courseId: widget.enrollment.courseId,
-      bitIndex: widget.enrollment.bitIndex,
-      sessionPin: pin,
-      secretHex: widget.enrollment.deviceSecret,
-      timeTick: _currentTick,
-    );
+      final packet = BlePacketCodec.buildStudentBeaconBytes(
+        courseId: widget.enrollment.courseId,
+        bitIndex: widget.enrollment.bitIndex,
+        sessionPin: pin,
+        secretHex: widget.enrollment.deviceSecret,
+        timeTick: _currentTick,
+      );
 
-    setState(() {
-      _phase = StudentBeaconPhase.broadcasting;
-      _bleWarning = null;
-    });
+      if (!mounted) return;
+      setState(() {
+        _phase = StudentBeaconPhase.broadcasting;
+        _bleWarning = null;
+      });
 
-    _bleSubscription = _bleService.packetEvents.listen(
-      (BlePacketEvent event) {
-        _handleIncomingPacket(event.packet16, event.rssi);
-      },
-      onError: (Object error) {
+      await _bleSubscription?.cancel();
+      _bleSubscription = _bleService.packetEvents.listen(
+        (BlePacketEvent event) {
+          _handleIncomingPacket(event.packet16, event.rssi);
+        },
+        onError: (Object error) {
+          if (!mounted) return;
+          setState(() {
+            _bleWarning = 'Aviso de conexión: $error';
+          });
+        },
+      );
+
+      try {
+        await _bleService.startAdvertisingPacket(packet);
+      } catch (e) {
         if (!mounted) return;
         setState(() {
-          _bleWarning = 'Aviso de conexión: $error';
+          _bleWarning = 'No se pudo emitir la señal: $e';
         });
-      },
-    );
+      }
 
-    try {
-      await _bleService.startAdvertisingPacket(packet);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _bleWarning = 'No se pudo emitir la señal: $e';
-      });
+      try {
+        await _bleService.startScan();
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _bleWarning ??= 'No se pudo iniciar la búsqueda: $e';
+        });
+      }
+
+      _startTicker();
+    } finally {
+      _isStartingBroadcast = false;
+      if (mounted) {
+        setState(() {});
+      }
     }
-
-    try {
-      await _bleService.startScan();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _bleWarning ??= 'No se pudo iniciar la búsqueda: $e';
-      });
-    }
-
-    _startTicker();
   }
 
   void _startTicker() {
@@ -255,9 +272,19 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
         _sessionPin == null) {
       return;
     }
+
+    final isTeacherEcho = BlePacketCodec.verifyTeacherEchoBytes(
+      packet16: packet16,
+      expectedCourseId: widget.enrollment.courseId,
+      sharedSecretHex: widget.enrollment.sharedSecret,
+    ).isValid;
+
+    if (isTeacherEcho && _lastTeacherRssi != rssi) {
+      _lastTeacherRssi = rssi;
+      if (mounted) setState(() {});
+    }
+
     _isProcessingPacket = true;
-    _lastTeacherRssi = rssi;
-    if (mounted) setState(() {});
     try {
       final outcome = await _sessionController.checkTeacherEchoForStudent(
         enrollment: widget.enrollment,
@@ -540,7 +567,7 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
               compact: true,
               onPressed: () async {
                 await _permissionService.turnOnBluetooth();
-                if (isValidPin) {
+                if (isValidPin && !_isStartingBroadcast) {
                   await _startBroadcasting(parsed);
                 } else {
                   final updated = await _permissionService.ensureReady();
@@ -562,7 +589,7 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
             compact: true,
             variant: UiButtonVariant.tonal,
             onPressed: () async {
-              if (isValidPin) {
+              if (isValidPin && !_isStartingBroadcast) {
                 await _startBroadcasting(parsed);
               } else {
                 final updated = await _permissionService.ensureReady();
@@ -578,7 +605,7 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
   Widget _buildInputPinBottom(BuildContext context) {
     return UiButton(
       label: 'Continuar',
-      onPressed: _pin.length == 2
+      onPressed: (_pin.length == 2 && !_isStartingBroadcast)
           ? () {
               final parsed = int.tryParse(_pin);
               if (parsed == null || parsed < 10) {
