@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../data/services/ble_permission_service.dart';
 import '../../ui/ui.dart';
@@ -77,19 +78,30 @@ class _BleReadyGateState extends State<BleReadyGate> {
       body = const Center(child: CircularProgressIndicator());
     } else {
       final bluetoothOff = result?.onlyBluetoothOff ?? false;
+      final locationOff = result?.onlyLocationServiceOff ??
+          (result != null && !result.isLocationServiceEnabled && result.missingPermissions.isEmpty);
       final needsSettings = result?.requiresAppSettings ?? false;
+      final isAndroid11OrLower = (result?.sdkVersion != null && result!.sdkVersion! <= 30) ||
+          (result?.missingPermissions.contains(Permission.locationWhenInUse) ?? false);
+      final permissionName = isAndroid11OrLower ? '«Ubicación»' : '«Dispositivos cercanos»';
+
       final title = result == null
           ? 'No se pudo revisar el Bluetooth'
           : bluetoothOff
               ? 'El Bluetooth está apagado'
-              : 'Falta un permiso';
+              : locationOff
+                  ? 'Ubicación desactivada'
+                  : 'Falta un permiso';
       final message = result == null
           ? 'Inténtalo de nuevo.'
           : bluetoothOff
               ? 'Enciéndelo para ${widget.purpose}.'
-              : needsSettings
-                  ? 'Abre los ajustes y permite «Dispositivos cercanos» para ${widget.purpose}.'
-                  : 'Permite el acceso a «Dispositivos cercanos» para ${widget.purpose}.';
+              : locationOff
+                  ? (result.failureMessage ??
+                      'Activa la ubicación del celular. En Android 11 o anterior el Bluetooth la necesita para encontrar otros celulares; la app no guarda tu ubicación.')
+                  : needsSettings
+                      ? 'Abre los ajustes y permite $permissionName para ${widget.purpose}.'
+                      : 'Permite el acceso a $permissionName para ${widget.purpose}.';
       body = Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(UiSpace.xxxl),
@@ -102,7 +114,11 @@ class _BleReadyGateState extends State<BleReadyGate> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: c.tint, borderRadius: BorderRadius.circular(UiRadius.xxl)),
                 child: Icon(
-                  bluetoothOff ? Icons.bluetooth_disabled_rounded : Icons.lock_outline_rounded,
+                  bluetoothOff
+                      ? Icons.bluetooth_disabled_rounded
+                      : locationOff
+                          ? Icons.location_off_rounded
+                          : Icons.lock_outline_rounded,
                   size: 40,
                   color: c.tintText,
                 ),
@@ -124,10 +140,17 @@ class _BleReadyGateState extends State<BleReadyGate> {
                     await _check();
                   },
                 )
+              else if (locationOff)
+                UiButton(
+                  label: 'Revisar de nuevo',
+                  onPressed: _check,
+                )
               else if (needsSettings)
                 UiButton(label: 'Abrir ajustes', onPressed: () => widget.permissionService.openAppSettings()),
-              const SizedBox(height: UiSpace.sm),
-              UiButton(label: 'Volver a intentar', variant: UiButtonVariant.outline, onPressed: _check),
+              if (!locationOff) ...[
+                const SizedBox(height: UiSpace.sm),
+                UiButton(label: 'Volver a intentar', variant: UiButtonVariant.outline, onPressed: _check),
+              ],
             ],
           ),
         ),

@@ -24,6 +24,7 @@ class _PermissionsGateState extends State<PermissionsGate> with WidgetsBindingOb
   AppPermissionsStatus? _status;
   bool _busy = false;
   bool _askedOnce = false;
+  bool _hasError = false;
 
   bool get _enabled => widget.enabled ?? Platform.isAndroid;
 
@@ -49,12 +50,23 @@ class _PermissionsGateState extends State<PermissionsGate> with WidgetsBindingOb
   }
 
   Future<void> _check() async {
+    setState(() => _hasError = false);
     try {
       final status = await widget.service.check();
-      if (mounted) setState(() => _status = status);
+      if (mounted) {
+        setState(() {
+          _status = status;
+          _hasError = false;
+        });
+      }
     } catch (error) {
       debugPrint('No se pudieron revisar los permisos: $error');
-      if (mounted) setState(() => _status = null);
+      if (mounted) {
+        setState(() {
+          _status = null;
+          _hasError = true;
+        });
+      }
     }
   }
 
@@ -82,14 +94,37 @@ class _PermissionsGateState extends State<PermissionsGate> with WidgetsBindingOb
     if (status != null && status.allGranted) return widget.child;
 
     final c = UiColors.of(context);
+    if (_hasError) {
+      return UiPage(
+        header: const UiBrandHeader(),
+        bottom: UiButton(label: 'Reintentar', onPressed: _check),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: UiSpace.page),
+            child: Text(
+              'No pudimos revisar los permisos.',
+              textAlign: TextAlign.center,
+              style: UiText.bodyStrong.copyWith(color: c.ink),
+            ),
+          ),
+        ),
+      );
+    }
+
     final needsSettings = status?.needsSettings ?? false;
+    final onlyLocationServiceOff = status != null &&
+        !status.isLocationServiceEnabled &&
+        status.granted.length == status.items.length;
+
     return UiPage(
       header: const UiBrandHeader(),
       bottom: status == null
           ? null
           : needsSettings
               ? UiButton(label: 'Abrir ajustes', icon: Icons.settings_outlined, onPressed: widget.service.openSettings)
-              : UiButton(label: 'Dar permisos', onPressed: _busy ? null : _requestAll, loading: _busy),
+              : onlyLocationServiceOff
+                  ? UiButton(label: 'Revisar de nuevo', onPressed: _busy ? null : _check)
+                  : UiButton(label: 'Dar permisos', onPressed: _busy ? null : _requestAll, loading: _busy),
       body: status == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -146,6 +181,13 @@ class _PermissionsGateState extends State<PermissionsGate> with WidgetsBindingOb
                           tone: UiBannerTone.warning,
                           title: 'Android ya no deja pedirlos desde aquí',
                           message: 'Abre los ajustes de la app, entra a «Permisos» y activa los que faltan. Al volver, la app sigue sola.',
+                        )
+                      else if (!status.isLocationServiceEnabled)
+                        UiBanner(
+                          tone: UiBannerTone.warning,
+                          title: 'Ubicación desactivada',
+                          message: status.locationServiceMessage ??
+                              'Activa la ubicación del celular. En Android 11 o anterior el Bluetooth la necesita para encontrar otros celulares; la app no guarda tu ubicación.',
                         )
                       else if (_askedOnce)
                         const UiBanner(
