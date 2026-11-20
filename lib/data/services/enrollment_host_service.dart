@@ -52,6 +52,7 @@ class EnrollmentHostState {
     this.students = const <StudentModel>[],
     this.pending = const <PendingEnrollment>[],
     this.recentlyEnrolled = const <StudentModel>[],
+    this.allStudentsCount,
   });
 
   /// Estudiantes activos de la clase.
@@ -63,9 +64,16 @@ class EnrollmentHostState {
   /// Inscritos en esta sesión de inscripción, del más reciente al más antiguo.
   final List<StudentModel> recentlyEnrolled;
 
+  /// Total de casillas ocupadas por estudiantes activos y retirados.
+  final int? allStudentsCount;
+
   int get totalStudents => students.length;
 
   int get boundCount => students.where((s) => s.hasDevice).length;
+
+  int get totalAllStudents => allStudentsCount ?? students.length;
+
+  bool get isFull => totalAllStudents >= AppConstants.bitmapBitCount;
 }
 
 class _Decision {
@@ -97,6 +105,7 @@ class EnrollmentHostService {
     DateTime Function()? now,
     this.responseInterval = const Duration(milliseconds: 600),
     this.responseLinger = const Duration(seconds: 3),
+    this.pendingTtl = const Duration(seconds: 90),
     Random? random,
   })  : _database = database, // ignore: prefer_initializing_formals
         _ble = bleService,
@@ -115,6 +124,9 @@ class EnrollmentHostService {
   /// Cuánto se sigue respondiendo a un estudiante después de oírlo por última vez.
   final Duration responseLinger;
 
+  /// Tiempo máximo de espera para una solicitud en espera antes de vencer.
+  final Duration pendingTtl;
+
   static const Uuid _uuid = Uuid();
 
   final StreamController<EnrollmentHostState> _states = StreamController<EnrollmentHostState>.broadcast();
@@ -122,6 +134,7 @@ class EnrollmentHostService {
   final Map<int, _PendingData> _pending = <int, _PendingData>{};
   final List<StudentModel> _recent = <StudentModel>[];
   final Set<int> _inFlight = <int>{};
+  Future<void> _actionQueue = Future<void>.value();
 
   EnrollmentHostState _state = const EnrollmentHostState();
   EnrollmentRequestAssembler? _assembler;
@@ -150,21 +163,52 @@ class EnrollmentHostService {
     });
   }
 
+  Future<T> _queueAction<T>(Future<T> Function() action) {
+    final completer = Completer<T>();
+    _actionQueue = _actionQueue.whenComplete(() async {
+      try {
+        final result = await action();
+        completer.complete(result);
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
+  }
+
+  bool _pruneExpiredPending() {
+    final now = _now();
+    var changed = false;
+    _pending.removeWhere((id, p) {
+      final expired = now.difference(p.info.receivedAt) >= pendingTtl;
+      if (expired) {
+        _decisions.remove(id);
+        changed = true;
+      }
+      return expired;
+    });
+    return changed;
+  }
+
   /// Empieza a escuchar solicitudes y a responderlas.
   Future<void> start() async {
     if (_running) return;
-    await _ensureKeys();
-    _assembler = EnrollmentRequestAssembler(courseId: course.id, sharedSecretHex: course.courseSecret);
-    await _refreshState();
-    _subscription = _ble.packetEvents.listen((event) => _onPacket(event.packet16));
-    await _ble.startScan();
-    _responseTimer = Timer.periodic(responseInterval, (_) => unawaited(_advertiseNextResponse()));
     _running = true;
+    try {
+      await _ensureKeys();
+      _assembler = EnrollmentRequestAssembler(courseId: course.id, sharedSecretHex: course.courseSecret);
+      await _refreshState();
+      _subscription = _ble.packetEvents.listen((event) => _onPacket(event.packet16));
+      await _ble.startScan();
+      _responseTimer = Timer.periodic(responseInterval, (_) => unawaited(_advertiseNextResponse()));
+    } catch (error) {
+      await stop();
+      rethrow;
+    }
   }
 
   /// Termina la inscripción. Las solicitudes sin resolver se descartan.
   Future<void> stop() async {
-    if (!_running) return;
     _running = false;
     _responseTimer?.cancel();
     _responseTimer = null;
@@ -173,8 +217,16 @@ class EnrollmentHostService {
     _pending.clear();
     _decisions.clear();
     _assembler?.clear();
-    await _ble.stopAdvertising();
-    await _ble.stopScan();
+    try {
+      await _ble.stopAdvertising();
+    } catch (error) {
+      debugPrint('Inscripción: no se pudo detener publicidad BLE: $error');
+    }
+    try {
+      await _ble.stopScan();
+    } catch (error) {
+      debugPrint('Inscripción: no se pudo detener escaneo BLE: $error');
+    }
     await _refreshState();
   }
 
@@ -184,83 +236,98 @@ class EnrollmentHostService {
   }
 
   /// Acepta a alguien que no estaba en la lista (o a un retirado que vuelve).
-  Future<StudentModel> approve(int requestId, {required String fullName, String? email}) async {
-    final data = _pending[requestId];
-    if (data == null) {
-      throw StateError('La solicitud ya no está disponible.');
-    }
-    final name = fullName.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (name.isEmpty) {
-      throw ArgumentError.value(fullName, 'fullName', 'Escribe el nombre del estudiante.');
-    }
-    final cleanEmail = (email == null || email.trim().isEmpty) ? null : email.trim().toLowerCase();
-    final nowIso = _now().toIso8601String();
-    final keyId = EnrollmentCrypto.keyId(data.publicKeyHex);
+  Future<StudentModel> approve(int requestId, {required String fullName, String? email}) {
+    return _queueAction(() async {
+      _pruneExpiredPending();
+      final data = _pending[requestId];
+      if (data == null) {
+        throw StateError('La solicitud ya no está disponible.');
+      }
+      final name = fullName.trim().replaceAll(RegExp(r'\s+'), ' ');
+      if (name.isEmpty) {
+        throw ArgumentError.value(fullName, 'fullName', 'Escribe el nombre del estudiante.');
+      }
+      final cleanEmail = (email == null || email.trim().isEmpty) ? null : email.trim().toLowerCase();
+      final nowIso = _now().toIso8601String();
+      final keyId = EnrollmentCrypto.keyId(data.publicKeyHex);
 
-    late final StudentModel student;
-    switch (data.info.kind) {
-      case PendingEnrollmentKind.notInRoster:
-        final all = await _database.getAllStudentsByCourse(course.id);
-        final bit = _firstFreeBit(all);
-        if (bit == null) {
-          _decide(requestId, EnrollmentStatus.classFull, data.deviceSecretHex);
-          _pending.remove(requestId);
-          await _refreshState();
-          throw StateError('La clase ya está completa (${AppConstants.bitmapBitCount} estudiantes).');
-        }
-        student = StudentModel(
-          id: _uuid.v4(),
-          courseId: course.id,
-          studentCode: data.info.studentCode,
-          fullName: name,
-          email: cleanEmail,
-          bitIndex: bit,
-          personalSecret: data.deviceSecretHex,
-          enrolledAt: nowIso,
-          origin: AppConstants.studentOriginAddedInClass,
-          deviceKeyId: keyId,
-          deviceBoundAt: nowIso,
-        );
-        await _database.insertStudent(student);
-      case PendingEnrollmentKind.retiredReturning:
-        final existing = data.info.existingStudent!;
-        await _database.reactivateStudent(existing.id);
-        await _database.updateStudentIdentity(studentId: existing.id, fullName: name, email: cleanEmail ?? existing.email);
-        await _bind(existing.id, data, nowIso);
-        student = (await _database.getStudentById(existing.id))!;
-      case PendingEnrollmentKind.deviceConflict:
-        throw StateError('Un conflicto de celular se resuelve con replaceDevice().');
-    }
+      late final StudentModel student;
+      switch (data.info.kind) {
+        case PendingEnrollmentKind.notInRoster:
+          final all = await _database.getAllStudentsByCourse(course.id);
+          if (all.any((s) => s.studentCode.trim() == data.info.studentCode.trim())) {
+            _pending.remove(requestId);
+            _decisions.remove(requestId);
+            await _refreshState();
+            throw StateError('Ese código ya está en la clase.');
+          }
+          final bit = _firstFreeBit(all);
+          if (bit == null) {
+            _decide(requestId, EnrollmentStatus.classFull, data.deviceSecretHex);
+            _pending.remove(requestId);
+            await _refreshState();
+            throw StateError('La clase ya está completa (${AppConstants.bitmapBitCount} estudiantes).');
+          }
+          student = StudentModel(
+            id: _uuid.v4(),
+            courseId: course.id,
+            studentCode: data.info.studentCode,
+            fullName: name,
+            email: cleanEmail,
+            bitIndex: bit,
+            personalSecret: data.deviceSecretHex,
+            enrolledAt: nowIso,
+            origin: AppConstants.studentOriginAddedInClass,
+            deviceKeyId: keyId,
+            deviceBoundAt: nowIso,
+          );
+          await _database.insertStudent(student);
+        case PendingEnrollmentKind.retiredReturning:
+          final existing = data.info.existingStudent!;
+          await _database.reactivateStudent(existing.id);
+          await _database.updateStudentIdentity(studentId: existing.id, fullName: name, email: cleanEmail ?? existing.email);
+          await _bind(existing.id, data, nowIso);
+          student = (await _database.getStudentById(existing.id))!;
+        case PendingEnrollmentKind.deviceConflict:
+          throw StateError('Un conflicto de celular se resuelve con replaceDevice().');
+      }
 
-    _decide(requestId, EnrollmentStatus.accepted, data.deviceSecretHex, bitIndex: student.bitIndex);
-    _pending.remove(requestId);
-    _remember(student);
-    await _refreshState();
-    return student;
+      _decide(requestId, EnrollmentStatus.accepted, data.deviceSecretHex, bitIndex: student.bitIndex);
+      _pending.remove(requestId);
+      _remember(student);
+      await _refreshState();
+      return student;
+    });
   }
 
   /// Resuelve un conflicto: el celular nuevo reemplaza al anterior.
-  Future<StudentModel> replaceDevice(int requestId) async {
-    final data = _pending[requestId];
-    if (data == null || data.info.kind != PendingEnrollmentKind.deviceConflict) {
-      throw StateError('La solicitud ya no está disponible.');
-    }
-    final existing = data.info.existingStudent!;
-    await _bind(existing.id, data, _now().toIso8601String());
-    final student = (await _database.getStudentById(existing.id))!;
-    _decide(requestId, EnrollmentStatus.accepted, data.deviceSecretHex, bitIndex: student.bitIndex);
-    _pending.remove(requestId);
-    _remember(student);
-    await _refreshState();
-    return student;
+  Future<StudentModel> replaceDevice(int requestId) {
+    return _queueAction(() async {
+      _pruneExpiredPending();
+      final data = _pending[requestId];
+      if (data == null || data.info.kind != PendingEnrollmentKind.deviceConflict) {
+        throw StateError('La solicitud ya no está disponible.');
+      }
+      final existing = data.info.existingStudent!;
+      await _bind(existing.id, data, _now().toIso8601String());
+      final student = (await _database.getStudentById(existing.id))!;
+      _decide(requestId, EnrollmentStatus.accepted, data.deviceSecretHex, bitIndex: student.bitIndex);
+      _pending.remove(requestId);
+      _remember(student);
+      await _refreshState();
+      return student;
+    });
   }
 
   /// Rechaza una solicitud en espera.
-  Future<void> reject(int requestId) async {
-    final data = _pending.remove(requestId);
-    if (data == null) return;
-    _decide(requestId, EnrollmentStatus.rejected, data.deviceSecretHex);
-    await _refreshState();
+  Future<void> reject(int requestId) {
+    return _queueAction(() async {
+      _pruneExpiredPending();
+      final data = _pending.remove(requestId);
+      if (data == null) return;
+      _decide(requestId, EnrollmentStatus.rejected, data.deviceSecretHex);
+      await _refreshState();
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -295,66 +362,78 @@ class EnrollmentHostService {
     final request = _assembler?.add(packet16);
     if (request == null || _inFlight.contains(request.requestId)) return;
     _inFlight.add(request.requestId);
-    unawaited(_handleRequest(request).whenComplete(() => _inFlight.remove(request.requestId)));
+    unawaited(
+      _handleRequest(request)
+          .catchError((Object error, StackTrace stackTrace) {
+            debugPrint('Inscripción: error al procesar solicitud: $error\n$stackTrace');
+          })
+          .whenComplete(() => _inFlight.remove(request.requestId)),
+    );
   }
 
   Future<void> _handleRequest(EnrollmentRequest request) async {
-    final keys = await _ensureKeys();
-    final deviceSecret = await EnrollmentCrypto.deriveDeviceSecret(
-      ownPrivateKeyHex: keys.privateKeyHex,
-      peerPublicKeyHex: request.studentPublicKeyHex,
-      sharedSecretHex: course.courseSecret,
-      studentCode: request.studentCode,
-    );
-    if (!_running) return;
-    final keyId = EnrollmentCrypto.keyId(request.studentPublicKeyHex);
-    final all = await _database.getAllStudentsByCourse(course.id);
-    StudentModel? existing;
-    for (final s in all) {
-      if (s.studentCode.trim() == request.studentCode) {
-        existing = s;
-        break;
+    try {
+      final keys = await _ensureKeys();
+      final deviceSecret = await EnrollmentCrypto.deriveDeviceSecret(
+        ownPrivateKeyHex: keys.privateKeyHex,
+        peerPublicKeyHex: request.studentPublicKeyHex,
+        sharedSecretHex: course.courseSecret,
+        studentCode: request.studentCode,
+      );
+      if (!_running) return;
+      final keyId = EnrollmentCrypto.keyId(request.studentPublicKeyHex);
+      final all = await _database.getAllStudentsByCourse(course.id);
+      StudentModel? existing;
+      for (final s in all) {
+        if (s.studentCode.trim() == request.studentCode) {
+          existing = s;
+          break;
+        }
       }
-    }
 
-    // El mismo celular volvió a pedir con otro número de solicitud: se reemplaza la anterior.
-    _pending.removeWhere((id, p) {
-      final same = p.publicKeyHex == request.studentPublicKeyHex && p.info.studentCode == request.studentCode;
-      if (same) _decisions.remove(id);
-      return same;
-    });
+      // Solicitud nueva para el mismo código: quita las anteriores aunque la clave sea distinta.
+      _pending.removeWhere((id, p) {
+        final same = p.info.studentCode == request.studentCode;
+        if (same) _decisions.remove(id);
+        return same;
+      });
 
-    if (existing != null && existing.isActive && (!existing.hasDevice || existing.deviceKeyId == keyId)) {
-      await _database.bindStudentDevice(
-        studentId: existing.id,
-        deviceSecretHex: deviceSecret,
-        deviceKeyId: keyId,
-        boundAt: _now().toIso8601String(),
-      );
-      _decide(request.requestId, EnrollmentStatus.accepted, deviceSecret, bitIndex: existing.bitIndex);
-      _remember((await _database.getStudentById(existing.id))!);
-    } else if (existing == null && _firstFreeBit(all) == null) {
-      _decide(request.requestId, EnrollmentStatus.classFull, deviceSecret);
-    } else {
-      final kind = existing == null
-          ? PendingEnrollmentKind.notInRoster
-          : existing.isRetired
-              ? PendingEnrollmentKind.retiredReturning
-              : PendingEnrollmentKind.deviceConflict;
-      _pending[request.requestId] = _PendingData(
-        info: PendingEnrollment(
-          requestId: request.requestId,
-          studentCode: request.studentCode,
-          kind: kind,
-          receivedAt: _now(),
-          existingStudent: existing,
-        ),
-        publicKeyHex: request.studentPublicKeyHex,
-        deviceSecretHex: deviceSecret,
-      );
-      _decide(request.requestId, EnrollmentStatus.pending, deviceSecret);
+      _pruneExpiredPending();
+
+      if (existing != null && existing.isActive && (!existing.hasDevice || existing.deviceKeyId == keyId)) {
+        await _database.bindStudentDevice(
+          studentId: existing.id,
+          deviceSecretHex: deviceSecret,
+          deviceKeyId: keyId,
+          boundAt: _now().toIso8601String(),
+        );
+        _decide(request.requestId, EnrollmentStatus.accepted, deviceSecret, bitIndex: existing.bitIndex);
+        _remember((await _database.getStudentById(existing.id))!);
+      } else if (existing == null && _firstFreeBit(all) == null) {
+        _decide(request.requestId, EnrollmentStatus.classFull, deviceSecret);
+      } else {
+        final kind = existing == null
+            ? PendingEnrollmentKind.notInRoster
+            : existing.isRetired
+                ? PendingEnrollmentKind.retiredReturning
+                : PendingEnrollmentKind.deviceConflict;
+        _pending[request.requestId] = _PendingData(
+          info: PendingEnrollment(
+            requestId: request.requestId,
+            studentCode: request.studentCode,
+            kind: kind,
+            receivedAt: _now(),
+            existingStudent: existing,
+          ),
+          publicKeyHex: request.studentPublicKeyHex,
+          deviceSecretHex: deviceSecret,
+        );
+        _decide(request.requestId, EnrollmentStatus.pending, deviceSecret);
+      }
+      await _refreshState();
+    } catch (error, stackTrace) {
+      debugPrint('Inscripción: error al procesar solicitud: $error\n$stackTrace');
     }
-    await _refreshState();
   }
 
   Future<void> _bind(String studentId, _PendingData data, String nowIso) {
@@ -396,6 +475,9 @@ class EnrollmentHostService {
   /// Anuncia, por turnos, la respuesta de cada estudiante que sigue pidiendo.
   Future<void> _advertiseNextResponse() async {
     if (!_running) return;
+    if (_pruneExpiredPending()) {
+      await _refreshState();
+    }
     final now = _now();
     final active = _decisions.entries
         .where((e) => now.difference(e.value.lastHeard) <= responseLinger)
@@ -428,12 +510,14 @@ class EnrollmentHostService {
 
   Future<void> _refreshState() async {
     final students = await _database.getStudentsByCourse(course.id);
+    final all = await _database.getAllStudentsByCourse(course.id);
     final pending = _pending.values.map((p) => p.info).toList()
       ..sort((a, b) => a.receivedAt.compareTo(b.receivedAt));
     _state = EnrollmentHostState(
       students: students,
       pending: List<PendingEnrollment>.unmodifiable(pending),
       recentlyEnrolled: List<StudentModel>.unmodifiable(_recent),
+      allStudentsCount: all.length,
     );
     if (!_states.isClosed) _states.add(_state);
   }

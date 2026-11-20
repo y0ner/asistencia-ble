@@ -9,6 +9,7 @@ import '../../core/crypto/enrollment_packet_codec.dart';
 import '../../core/models/student_enrollment_model.dart';
 import '../local/app_database.dart';
 import 'ble_attendance_service.dart';
+import 'enrollment_key_store.dart';
 
 /// Datos del QR de la clase (versión 2).
 class ClassInvite {
@@ -93,17 +94,20 @@ class EnrollmentClientService {
   EnrollmentClientService({
     required AppDatabase database,
     required BleAttendanceService bleService,
+    EnrollmentKeyStore? keyStore,
     this.fragmentInterval = const Duration(milliseconds: 400),
     this.timeout = const Duration(seconds: 60),
     Random? random,
     DateTime Function()? now,
   })  : _database = database, // ignore: prefer_initializing_formals
         _ble = bleService,
+        _keyStore = keyStore ?? const PrefsEnrollmentKeyStore(),
         _random = random ?? Random.secure(),
         _now = now ?? DateTime.now;
 
   final AppDatabase _database;
   final BleAttendanceService _ble;
+  final EnrollmentKeyStore _keyStore;
   final Random _random;
   final DateTime Function() _now;
 
@@ -154,7 +158,12 @@ class EnrollmentClientService {
     String displayName,
   ) async {
     try {
-      final pair = await EnrollmentCrypto.generateKeyPair();
+      var pair = await _keyStore.load(invite.courseId, code);
+      if (pair == null) {
+        pair = await EnrollmentCrypto.generateKeyPair();
+        await _keyStore.save(invite.courseId, code, pair);
+      }
+      if (_updates != controller) return; // cancelada mientras se gestionaban las claves
       final deviceSecret = await EnrollmentCrypto.deriveDeviceSecret(
         ownPrivateKeyHex: pair.privateKeyHex,
         peerPublicKeyHex: invite.teacherPublicKeyHex,
@@ -225,33 +234,39 @@ class EnrollmentClientService {
     String displayName,
     String deviceSecret,
   ) async {
-    switch (response.status) {
-      case EnrollmentStatus.pending:
-        _armTimeout(controller); // el docente está decidiendo: se sigue esperando
-        if (!controller.isClosed) {
-          controller.add(const EnrollmentClientUpdate(EnrollmentClientPhase.pending));
-        }
-      case EnrollmentStatus.accepted:
-        _finishing = true;
-        final enrollment = StudentEnrollmentModel(
-          id: '${invite.courseId}:$code',
-          courseId: invite.courseId,
-          courseCode: invite.courseCode,
-          courseName: invite.courseName,
-          studentId: '${invite.courseId}:$code',
-          studentCode: code,
-          fullName: displayName,
-          bitIndex: response.bitIndex!,
-          deviceSecret: deviceSecret,
-          sharedSecret: invite.sharedSecretHex,
-          enrolledAtEpochMs: _now().millisecondsSinceEpoch,
-        );
-        await _database.upsertStudentEnrollment(enrollment);
-        await _finish(controller, EnrollmentClientUpdate(EnrollmentClientPhase.accepted, enrollment: enrollment));
-      case EnrollmentStatus.rejected:
-        await _finish(controller, const EnrollmentClientUpdate(EnrollmentClientPhase.rejected));
-      case EnrollmentStatus.classFull:
-        await _finish(controller, const EnrollmentClientUpdate(EnrollmentClientPhase.classFull));
+    try {
+      switch (response.status) {
+        case EnrollmentStatus.pending:
+          _armTimeout(controller); // el docente está decidiendo: se sigue esperando
+          if (!controller.isClosed) {
+            controller.add(const EnrollmentClientUpdate(EnrollmentClientPhase.pending));
+          }
+        case EnrollmentStatus.accepted:
+          _finishing = true;
+          final enrollment = StudentEnrollmentModel(
+            id: '${invite.courseId}:$code',
+            courseId: invite.courseId,
+            courseCode: invite.courseCode,
+            courseName: invite.courseName,
+            studentId: '${invite.courseId}:$code',
+            studentCode: code,
+            fullName: displayName,
+            bitIndex: response.bitIndex!,
+            deviceSecret: deviceSecret,
+            sharedSecret: invite.sharedSecretHex,
+            enrolledAtEpochMs: _now().millisecondsSinceEpoch,
+          );
+          await _database.upsertStudentEnrollment(enrollment);
+          await _finish(controller, EnrollmentClientUpdate(EnrollmentClientPhase.accepted, enrollment: enrollment));
+        case EnrollmentStatus.rejected:
+          await _finish(controller, const EnrollmentClientUpdate(EnrollmentClientPhase.rejected));
+        case EnrollmentStatus.classFull:
+          await _finish(controller, const EnrollmentClientUpdate(EnrollmentClientPhase.classFull));
+      }
+    } catch (error, stackTrace) {
+      if (!controller.isClosed) controller.addError(error, stackTrace);
+      await _teardown();
+      if (!controller.isClosed) await controller.close();
     }
   }
 
