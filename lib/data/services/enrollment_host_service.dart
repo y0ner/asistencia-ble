@@ -180,7 +180,8 @@ class EnrollmentHostService {
     final now = _now();
     var changed = false;
     _pending.removeWhere((id, p) {
-      final expired = now.difference(p.info.receivedAt) >= pendingTtl;
+      final lastHeard = _decisions[id]?.lastHeard ?? p.info.receivedAt;
+      final expired = now.difference(lastHeard) >= pendingTtl;
       if (expired) {
         _decisions.remove(id);
         changed = true;
@@ -391,10 +392,13 @@ class EnrollmentHostService {
         }
       }
 
-      // Solicitud nueva para el mismo código: quita las anteriores aunque la clave sea distinta.
+      // Solicitud nueva para el mismo código: marca la anterior como rechazada
+      // para que el celular desplazado reciba «rechazada» y sus fragmentos no vuelvan a armarse.
       _pending.removeWhere((id, p) {
         final same = p.info.studentCode == request.studentCode;
-        if (same) _decisions.remove(id);
+        if (same) {
+          _decide(id, EnrollmentStatus.rejected, p.deviceSecretHex);
+        }
         return same;
       });
 
