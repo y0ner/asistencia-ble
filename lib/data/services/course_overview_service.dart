@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+
 import '../../core/models/course_model.dart';
 import '../../core/models/session_model.dart';
 import '../local/app_database.dart';
@@ -95,25 +99,24 @@ class CourseOverviewService {
 
   /// Promedio de asistencia redondeado a una cifra decimal; nulo si no hay datos.
   static double? averageAttendance(List<StudentAttendanceMetric> students, int closedSessions) {
-    final active = students.where((s) => s.isActive).toList(growable: false);
-    if (active.isEmpty || closedSessions == 0) return null;
-    final sum = active.fold<double>(0, (acc, s) => acc + s.attendancePercentage);
-    return (sum / active.length * 10).roundToDouble() / 10;
+    final withSessions = students.where((s) => s.isActive && s.totalSessions > 0).toList(growable: false);
+    if (withSessions.isEmpty || closedSessions == 0) return null;
+    final sum = withSessions.fold<double>(0, (acc, s) => acc + s.attendancePercentage);
+    return (sum / withSessions.length * 10).roundToDouble() / 10;
   }
 
   /// Resumen de todas las clases, en el orden de la base de datos.
-  Future<List<CourseOverview>> loadAll() async {
+  Future<List<CourseOverview>> loadAll({DateTime? nowOverride}) async {
     final courses = await _database.getAllCourses();
     final result = <CourseOverview>[];
     for (final course in courses) {
-      result.add(await load(course.id));
+      result.add(await load(course.id, nowOverride: nowOverride));
     }
     return result;
   }
 
   /// Resumen de una clase.
-  Future<CourseOverview> load(String courseId) async {
-    await _database.consolidateOpenSession(courseId);
+  Future<CourseOverview> load(String courseId, {DateTime? nowOverride}) async {
     final summary = await _reportService.buildCourseSummary(courseId);
     final activeStudents =
         summary.students.where((s) => s.isActive).toList(growable: false);
@@ -125,24 +128,71 @@ class CourseOverviewService {
 
     final rows = <SessionAttendanceRow>[];
     for (final session in sessions) {
-      final records = await _database.getAttendanceRecordsBySession(session.id);
-      final presentCount = records
-          .where((r) => activeStudentIds.contains(r.studentId))
-          .map((r) => r.studentId)
-          .toSet()
-          .length;
+      int presentCount;
+      int sessionTotalStudents;
+
+      final actaJson = await _database.getSessionActaJson(session.id);
+      Map<String, dynamic>? acta;
+      if (actaJson != null && actaJson.trim().isNotEmpty) {
+        try {
+          final decoded = jsonDecode(actaJson);
+          if (decoded is Map) {
+            acta = <String, dynamic>{
+              for (final entry in decoded.entries) entry.key.toString(): entry.value,
+            };
+          }
+        } on FormatException catch (e) {
+          debugPrint('Error al decodificar acta de sesión ${session.id}: $e');
+        }
+      }
+
+      if (acta != null) {
+        final totalEnrolled = acta['totalEnrolled'];
+        sessionTotalStudents = (totalEnrolled is num) ? totalEnrolled.toInt() : studentCount;
+        final recordsList = acta['records'];
+        if (recordsList is List) {
+          presentCount = recordsList.where((r) {
+            if (r is Map) {
+              final status = (r['status'] ?? '').toString();
+              return status == 'PRESENT';
+            }
+            return false;
+          }).length;
+        } else {
+          final ble = (acta['presentBleCount'] as num?)?.toInt() ?? 0;
+          final manual = (acta['presentManualCount'] as num?)?.toInt() ?? 0;
+          presentCount = ble + manual;
+        }
+      } else {
+        final records = await _database.getAttendanceRecordsBySession(session.id);
+        presentCount = records
+            .where((r) => activeStudentIds.contains(r.studentId))
+            .map((r) => r.studentId)
+            .toSet()
+            .length;
+        sessionTotalStudents = studentCount;
+      }
+
       rows.add(SessionAttendanceRow(
         session: session,
         presentCount: presentCount,
-        totalStudents: studentCount,
+        totalStudents: sessionTotalStudents,
       ));
     }
 
+    final now = (nowOverride ?? DateTime.now()).toLocal();
     SessionAttendanceRow? open;
     for (final row in rows) {
       if (row.isOpen) {
-        open = row;
-        break;
+        final started = DateTime.tryParse(row.session.startedAt)?.toLocal();
+        final isToday = started != null &&
+            started.year == now.year &&
+            started.month == now.month &&
+            started.day == now.day;
+        if (isToday) {
+          open = row;
+          break;
+        }
       }
     }
 

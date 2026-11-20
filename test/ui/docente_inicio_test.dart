@@ -160,11 +160,12 @@ Future<void> _seedCourseWithOpenAndClosedSessions(AppDatabase db) async {
   ));
 
   // Sesión 2: abierta, solo s1 llegó (1 de 2 estudiantes ya llegaron).
+  final openStarted = DateTime.now().toIso8601String();
   const openId = 'ses-open';
-  await db.insertSession(const SessionModel(
+  await db.insertSession(SessionModel(
     id: openId,
     courseId: 'c1',
-    startedAt: '2026-11-11T08:00:00.000Z',
+    startedAt: openStarted,
     closedAt: null,
     roomPin: '47',
   ));
@@ -471,20 +472,24 @@ void main() {
           await database.insertCourse(c1);
           await database.insertCourse(c2);
 
-          // Sesión abierta antigua para c1 (08:00)
-          await database.insertSession(const SessionModel(
+          final now = DateTime.now();
+          final earlierToday = now.subtract(const Duration(hours: 2)).toIso8601String();
+          final laterToday = now.subtract(const Duration(hours: 1)).toIso8601String();
+
+          // Sesión abierta antigua para c1
+          await database.insertSession(SessionModel(
             id: 'open-1',
             courseId: 'c1',
-            startedAt: '2026-11-11T08:00:00.000Z',
+            startedAt: earlierToday,
             closedAt: null,
             roomPin: '41',
           ));
 
-          // Sesión abierta más reciente para c2 (10:00)
-          await database.insertSession(const SessionModel(
+          // Sesión abierta más reciente para c2
+          await database.insertSession(SessionModel(
             id: 'open-2',
             courseId: 'c2',
-            startedAt: '2026-11-11T10:00:00.000Z',
+            startedAt: laterToday,
             closedAt: null,
             roomPin: '42',
           ));
