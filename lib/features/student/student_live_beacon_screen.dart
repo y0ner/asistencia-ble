@@ -522,9 +522,20 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
 
   Widget _buildPermissionWarning(BuildContext context) {
     final res = _permissionResult!;
-    final isBtOff = res.onlyBluetoothOff;
+    final advice = blePermissionAdvice(res, 'registrar tu asistencia');
+    final isBtOff = advice.isBluetoothOff;
+    final isLocOff = advice.isLocationOff;
     final parsed = int.tryParse(_pin);
     final isValidPin = parsed != null && parsed >= 10 && _pin.length == 2;
+
+    Future<void> retry() async {
+      if (isValidPin && !_isStartingBroadcast) {
+        await _startBroadcasting(parsed);
+      } else {
+        final updated = await _permissionService.ensureReady();
+        if (mounted) setState(() => _permissionResult = updated);
+      }
+    }
 
     return UiCard(
       tone: UiTone.manual,
@@ -537,15 +548,15 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
               Icon(
                 isBtOff
                     ? Icons.bluetooth_disabled
-                    : Icons.security_update_warning_outlined,
+                    : isLocOff
+                        ? Icons.location_off
+                        : Icons.security_update_warning_outlined,
                 size: 22,
               ),
               const SizedBox(width: UiSpace.sm),
               Expanded(
                 child: Text(
-                  isBtOff
-                      ? 'El Bluetooth está apagado'
-                      : 'Falta un permiso',
+                  advice.title,
                   style: UiText.bodyStrong,
                 ),
               ),
@@ -553,11 +564,7 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
           ),
           const SizedBox(height: UiSpace.xs),
           Text(
-            isBtOff
-                ? 'Enciéndelo para registrar tu asistencia.'
-                : res.requiresAppSettings
-                    ? 'Abre los ajustes y permite «Dispositivos cercanos» para registrar tu asistencia.'
-                    : 'Permite el acceso a «Dispositivos cercanos» para registrar tu asistencia.',
+            advice.message,
             style: UiText.label,
           ),
           const SizedBox(height: UiSpace.md),
@@ -567,16 +574,18 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
               compact: true,
               onPressed: () async {
                 await _permissionService.turnOnBluetooth();
-                if (isValidPin && !_isStartingBroadcast) {
-                  await _startBroadcasting(parsed);
-                } else {
-                  final updated = await _permissionService.ensureReady();
-                  if (mounted) setState(() => _permissionResult = updated);
-                }
+                await retry();
               },
             ),
             const SizedBox(height: UiSpace.sm),
-          ] else if (res.requiresAppSettings) ...[
+          ] else if (isLocOff) ...[
+            UiButton(
+              label: 'Revisar de nuevo',
+              compact: true,
+              onPressed: retry,
+            ),
+            const SizedBox(height: UiSpace.sm),
+          ] else if (advice.requiresSettings) ...[
             UiButton(
               label: 'Abrir ajustes',
               compact: true,
@@ -584,19 +593,13 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
             ),
             const SizedBox(height: UiSpace.sm),
           ],
-          UiButton(
-            label: 'Volver a intentar',
-            compact: true,
-            variant: UiButtonVariant.tonal,
-            onPressed: () async {
-              if (isValidPin && !_isStartingBroadcast) {
-                await _startBroadcasting(parsed);
-              } else {
-                final updated = await _permissionService.ensureReady();
-                if (mounted) setState(() => _permissionResult = updated);
-              }
-            },
-          ),
+          if (!isLocOff)
+            UiButton(
+              label: 'Volver a intentar',
+              compact: true,
+              variant: UiButtonVariant.tonal,
+              onPressed: retry,
+            ),
         ],
       ),
     );
