@@ -132,7 +132,7 @@ void main() {
           '0182110072;Luis Alberto\n'
           '0182120099,Carlos\n'
           '0182120098 - Diana   Pérez\n'
-          '0182120097 - Juan Pérez\n'
+          '0182120097-Juan Pérez\n'
           'SINSEPARADOR\n';
 
       final result = await service.importFromClipboardText(course.id, text);

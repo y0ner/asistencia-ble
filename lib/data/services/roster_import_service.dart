@@ -586,6 +586,12 @@ class RosterImportService {
     if (spacedHyphen != null) {
       return line.split(RegExp(r'\s+-\s+'));
     }
+    // «0182120097-Juan Pérez»: un guion pegado a los dígitos del código separa
+    // sin ambigüedad (el código solo tiene números).
+    final codeHyphen = RegExp(r'^(\d{4,12})-(.+)$').firstMatch(line.trim());
+    if (codeHyphen != null) {
+      return <String>[codeHyphen.group(1)!, codeHyphen.group(2)!];
+    }
     final match = RegExp(r'^(\d{4,12})\s+(.+?)(?:\s+(\S+@\S+))?$')
         .firstMatch(line.trim());
     if (match != null) {
