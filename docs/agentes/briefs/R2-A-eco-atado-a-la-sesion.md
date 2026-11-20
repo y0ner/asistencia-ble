@@ -87,3 +87,27 @@ Prueba nueva `test/eco_sesion_test.dart`:
 
 Marcar asistencia normal en los dos celulares: el estudiante sigue recibiendo
 su «¡Presente!» (las dos apps deben tener esta versión).
+
+## Hallazgos de la revisión de R1-A (también en este brief)
+
+Un revisor independiente encontró esto en el mismo controlador. Corrígelo en
+`attendance_session_controller.dart` (ya permitido) y `test/radar_docente_test.dart`.
+
+6. **El acta de una sesión de otro día se arma con la lista de hoy.**
+   `_buildAndSaveActa` usa `getStudentsByCourse` (solo activos de hoy). Al
+   cerrar automáticamente una sesión vieja: quien se inscribió **después** sale
+   ausente y suma al total; quien se **retiró** después pierde su presente del
+   acta y su bit del `bitmap_hex`. **Arreglo:** cuando el acta es de una sesión
+   vieja (el camino de `_startTeacherSession`), usa `getAllStudentsByCourse` y
+   toma a los estudiantes cuyo `enrolledAt` sea nulo o `<=` al `startedAt` de la
+   sesión, **más** todo estudiante que tenga registro en esa sesión. El cierre
+   normal (`closeAndSignSession`) no cambia.
+7. **Pruebas débiles en `test/radar_docente_test.dart`:**
+   - Liberar el controlador **durante** `startTeacherSession`: lanza el inicio
+     sin esperar, llama a `dispose()` enseguida, espera los dos (el inicio puede
+     lanzar `StateError`) y comprueba que el aire falso no quedó escaneando y
+     que no hubo anuncios después del `dispose`.
+   - La prueba de los 50 paquetes repetidos debe comprobar también que el eco
+     **no** se volvió a emitir (cuenta los anuncios del aire falso).
+   - Acta de sesión vieja: un estudiante inscrito después no aparece en ella y
+     uno retirado después con registro aparece como presente.
