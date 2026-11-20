@@ -56,7 +56,7 @@ void main() {
           '0182120016,  José   Ángel  Pérez ,jose@uniguajira.edu.co\r\n'
           '0182110072,María Camila Ipuana,\r\n'
           '0182120016,Otra Persona,otra@uniguajira.edu.co\r\n'
-          '0182120099,José Ángel Pérez,duplicado@uniguajira.edu.co\r\n'
+          '0182120016,José Ángel Pérez,duplicado@uniguajira.edu.co\r\n'
           ',"SIN CODIGO",\r\n';
 
       final result = await service.importFromCsvString(course.id, csv);
@@ -178,17 +178,17 @@ void main() {
 
       // Segundo pegado que incluye:
       // 1. Fila repetida exacta (código y nombre existente)
-      // 2. Colisión por nombre en mayúsculas sin tilde pero con otro código ("0182120099\tALVARO LUIS GARRIDO MEDINA")
-      // 3. Colisión por código pero con otro nombre ("0182110072\tMaria Diferente")
+      // 2. Colisión por código existente ("0182120016\tALVARO LUIS GARRIDO MEDINA")
+      // 3. Colisión por código existente pero con otro nombre ("0182110072\tMaria Diferente")
       // 4. Un estudiante nuevo válido ("0182120050\tJosé Pérez")
-      // 5. Duplicado intra-lote del nuevo (mismo nombre sin tilde: "0182120051\tJOSE PEREZ")
+      // 5. Duplicado intra-lote del nuevo código ("0182120050\tJOSE PEREZ")
       // 6. Duplicado intra-lote exacto ("0182120050\tJosé Pérez")
       const segundoLote =
           '0182120016\tÁlvaro Luis Garrido Medina\n'
-          '0182120099\tALVARO LUIS GARRIDO MEDINA\n'
+          '0182120016\tALVARO LUIS GARRIDO MEDINA\n'
           '0182110072\tMaria Diferente\n'
           '0182120050\tJosé Pérez\n'
-          '0182120051\tJOSE PEREZ\n'
+          '0182120050\tJOSE PEREZ\n'
           '0182120050\tJosé Pérez\n';
 
       final res2 = await service.importFromClipboardText(course.id, segundoLote);
@@ -333,14 +333,14 @@ void main() {
         ),
         throwsA(isA<StateError>()),
       );
-      await expectLater(
-        service.addManualStudent(
-          courseId: course.id,
-          studentCode: '0182120099',
-          fullName: 'José Ángel Pérez',
-        ),
-        throwsA(isA<StateError>()),
+      // Permite homónimos con códigos distintos
+      final homonimo = await service.addManualStudent(
+        courseId: course.id,
+        studentCode: '0182120099',
+        fullName: 'José Ángel Pérez',
       );
+      expect(homonimo.studentCode, '0182120099');
+      expect(homonimo.fullName, 'JOSE ANGEL PEREZ');
     });
 
     test('asigna el último bit libre y respeta el límite de 64', () async {
@@ -367,7 +367,8 @@ void main() {
 
       expect(result.insertedCount, 1);
       expect(result.insertedStudents.single.bitIndex, 63);
-      expect(result.invalidRowsSkipped, 1);
+      expect(result.skippedClassFull, 1);
+      expect(result.invalidRowsSkipped, 0);
       expect(await database.getStudentsByCourse(course.id), hasLength(64));
       await expectLater(
         service.addManualStudent(

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -152,7 +150,7 @@ class _RosterImportModalState extends State<RosterImportModal> {
           bytes,
         );
       } else if (ext == 'csv') {
-        final csvString = utf8.decode(bytes, allowMalformed: true);
+        final csvString = RosterImportService.decodeCsvBytes(bytes);
         result = await _rosterService.importFromCsvString(
           widget.course.id,
           csvString,
@@ -197,6 +195,13 @@ class _RosterImportModalState extends State<RosterImportModal> {
 
       if (!mounted) return;
       showUiSnack(context, 'Se agregó a ${student.fullName}.');
+    } on ArgumentError catch (e) {
+      if (!mounted) return;
+      showUiSnack(
+        context,
+        e.message?.toString() ??
+            'El código debe tener solo números, de 4 a 12 dígitos.',
+      );
     } catch (e) {
       if (!mounted) return;
       showUiSnack(context, 'No se pudo agregar al estudiante.');
@@ -227,11 +232,32 @@ class _RosterImportModalState extends State<RosterImportModal> {
                   style: UiText.body.copyWith(color: c.muted),
                 ),
               ],
+              if (result.skippedClassFull > 0) ...[
+                const SizedBox(height: UiSpace.sm),
+                Text(
+                  'La clase ya está completa (64 estudiantes). No se agregaron ${result.skippedClassFull}.',
+                  style: UiText.body.copyWith(color: c.absentText),
+                ),
+              ],
+              if (result.invalidCodesSkipped > 0) ...[
+                const SizedBox(height: UiSpace.sm),
+                Text(
+                  'Se omitieron ${result.invalidCodesSkipped} por código no válido. Revisa que la columna de códigos esté como texto en Excel.',
+                  style: UiText.body.copyWith(color: c.absentText),
+                ),
+              ],
               if (result.invalidRowsSkipped > 0) ...[
                 const SizedBox(height: UiSpace.sm),
                 Text(
-                  'Se omitieron ${result.invalidRowsSkipped} por datos incompletos o falta de cupo.',
+                  'Se omitieron ${result.invalidRowsSkipped} por datos incompletos.',
                   style: UiText.body.copyWith(color: c.absentText),
+                ),
+              ],
+              if (result.formulaCellsSkipped > 0) ...[
+                const SizedBox(height: UiSpace.sm),
+                Text(
+                  'Si la lista tiene fórmulas, cópiala y pégala como valores.',
+                  style: UiText.body.copyWith(color: c.muted),
                 ),
               ],
             ],
