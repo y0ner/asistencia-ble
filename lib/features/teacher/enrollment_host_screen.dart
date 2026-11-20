@@ -72,6 +72,10 @@ class _EnrollmentHostScreenState extends State<EnrollmentHostScreen> {
     } catch (error) {
       debugPrint('No se pudo mantener la pantalla encendida: $error');
     }
+    await _stateSub?.cancel();
+    _stateSub = null;
+    await _issueSub?.cancel();
+    _issueSub = null;
     _stateSub = _host.states.listen((state) {
       if (mounted) setState(() => _state = state);
     });
@@ -81,7 +85,10 @@ class _EnrollmentHostScreenState extends State<EnrollmentHostScreen> {
     try {
       final payload = await _host.buildClassQrPayload();
       await _host.start();
-      if (!mounted) return;
+      if (!mounted) {
+        unawaited(_host.stop());
+        return;
+      }
       setState(() {
         _qrPayload = payload;
         _state = _host.state;
@@ -169,7 +176,7 @@ class _EnrollmentHostScreenState extends State<EnrollmentHostScreen> {
     final c = UiColors.of(context);
     final total = _state.totalStudents;
     final bound = _state.boundCount;
-    final isFull = total >= AppConstants.bitmapBitCount;
+    final isFull = _state.totalAllStudents >= AppConstants.bitmapBitCount;
 
     return UiPage(
       header: UiTopBar(
