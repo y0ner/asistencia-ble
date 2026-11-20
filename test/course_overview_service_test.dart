@@ -84,10 +84,10 @@ void main() {
       if (n == 1) await db.insertAttendanceRecord(_record(id, s[2]));
       await db.closeSession(sessionId: id, closedAt: '2026-11-0${n + 1}T09:00:00.000-05:00');
     }
-    await db.insertSession(const SessionModel(
+    await db.insertSession(SessionModel(
       id: 'abierta',
       courseId: 'c1',
-      startedAt: '2026-11-09T08:00:00.000-05:00',
+      startedAt: DateTime.now().toIso8601String(),
       roomPin: '47',
     ));
     await db.insertAttendanceRecord(_record('abierta', s[0]));

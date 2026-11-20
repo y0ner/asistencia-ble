@@ -480,7 +480,7 @@ class ExcelReportService {
           totalAttendances: totalAttendances,
           totalAbsences: totalAbsences,
           attendancePercentage: attendancePercentage,
-          alertStatus: _alertStatusForAbsence(absencePercentage),
+          alertStatus: !student.isActive ? '—' : _alertStatusForAbsence(absencePercentage),
           origin: student.origin,
           deviceBoundAt: student.deviceBoundAt,
           studentStatus: student.status,
@@ -518,7 +518,7 @@ class ExcelReportService {
           metric.totalAttendances,
           metric.totalAbsences,
           metric.attendancePercentage,
-          metric.alertStatus,
+          metric.isRetired ? '—' : metric.alertStatus,
           metric.wasAddedInClass ? 'Agregado en clase' : 'Lista',
           _formatLocalDate(metric.deviceBoundAt),
           metric.isRetired
@@ -566,8 +566,8 @@ class ExcelReportService {
 
           detailRows.add(<Object?>[
             snapshot.session.id,
-            snapshot.session.startedAt,
-            snapshot.closedAtIso,
+            _formatLocalSessionDate(snapshot.session.startedAt),
+            _formatLocalSessionDate(snapshot.closedAtIso),
             student.bitIndex,
             student.studentCode,
             student.fullName,
@@ -591,7 +591,7 @@ class ExcelReportService {
         }
         detailRows.add(<Object?>[
           snapshot.session.id,
-          snapshot.session.startedAt,
+          _formatLocalSessionDate(snapshot.session.startedAt),
           '',
           student.bitIndex,
           student.studentCode,
@@ -623,8 +623,8 @@ class ExcelReportService {
         <Object?>[
           snapshot.session.id,
           snapshot.session.courseId,
-          snapshot.session.startedAt,
-          snapshot.closedAtIso,
+          _formatLocalSessionDate(snapshot.session.startedAt),
+          _formatLocalSessionDate(snapshot.closedAtIso),
           snapshot.isClosed ? 'CERRADA' : 'ABIERTA',
           snapshot.session.roomPin,
           snapshot.bitmapHex,
@@ -654,6 +654,7 @@ class ExcelReportService {
       <Object?>['TotalSesionesCerradas', closedSnapshots.length],
       <Object?>['TotalActasFirmadas', signatures.length],
       <Object?>['FechaGeneracionISO8601', generatedAtIso],
+      <Object?>['FechaGeneracionLocal', _formatLocalSessionDate(generatedAtIso)],
       <Object?>['HuellaIntegridadReporteHmacSha256', reportHmacSha256],
     ];
 
@@ -744,6 +745,21 @@ class ExcelReportService {
     final idRaw = course.id.length >= 6 ? course.id.substring(0, 6) : course.id;
     final id6 = _sanitizeFileSegment(idRaw);
     return 'Asistencia_Uniguajira_${courseCode}_${groupCode}_${semester}_$id6.xlsx';
+  }
+
+  static String _formatLocalSessionDate(String? raw) {
+    if (raw == null) return '';
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+    final dt = DateTime.tryParse(trimmed);
+    if (dt == null) return raw;
+    final local = dt.toLocal();
+    final y = local.year.toString().padLeft(4, '0');
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    final h = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $h:$min';
   }
 
   static String _formatLocalDate(String? isoString) {

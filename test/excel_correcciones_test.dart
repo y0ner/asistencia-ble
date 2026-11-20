@@ -606,11 +606,14 @@ void main() {
             final fileName = ExcelReportService.exportFileNameFor(course);
             final olderFile = File('${tempPrimaryDir.path}/$fileName');
             await olderFile.writeAsString('antiguo');
+            await olderFile.setLastModified(
+              DateTime.now().subtract(const Duration(minutes: 5)),
+            );
 
             // Aseguramos que el archivo en el fallback sea más reciente
-            sleep(const Duration(milliseconds: 50));
             final newerFile = File('${tempFallbackDir.path}/$fileName');
             await newerFile.writeAsString('nuevo');
+            await newerFile.setLastModified(DateTime.now());
 
             final latest = await CourseReportsScreen.resolveLatestExportedFile(
               course: course,
