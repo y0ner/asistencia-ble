@@ -136,6 +136,7 @@ void main() {
 
       final p2 = parseSvgPath(d);
       expect(svgPathCacheSize, 1); // No vuelve a parsear ni añade otra entrada
+      expect(identical(p1, p2), isFalse); // Cada llamada recibe su propia copia
 
       // Modificar el Path devuelto no afecta a llamadas posteriores
       p1.lineTo(100, 100);
