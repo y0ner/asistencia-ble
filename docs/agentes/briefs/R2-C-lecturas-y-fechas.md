@@ -71,3 +71,37 @@ Prueba nueva `test/lecturas_y_fechas_test.dart` (base en memoria como
 
 Dejar una sesión sin firmar, volver al Inicio y a la Clase: no desaparece.
 Exportar el Excel: las fechas se leen como `2026-11-19 08:05`.
+
+## Hallazgos de la revisión de R1-C (también en este brief)
+
+Un revisor independiente encontró esto en el Excel y los reportes. Corrígelo
+en los mismos archivos permitidos, más `lib/features/teacher/course_reports_screen.dart`.
+
+3. **Totales de sesiones cerradas desde el acta** (especificación §7: «Los
+   totales de las sesiones ya cerradas ("29 de 32") se toman de la sesión
+   firmada, para que no cambien al retirar a alguien»). En
+   `course_overview_service.dart` (~líneas 129-137), para una sesión **con
+   acta**, `presentCount` y `totalStudents` salen del acta (`totalEnrolled` y
+   los `records` presentes). Sin acta: como hoy (solo activos).
+4. **Retirados en `EstadoAlerta`:** en la hoja `Resumen`, un retirado lleva
+   «—» en `EstadoAlerta` (no `FALLA_POR_INASISTENCIAS`), porque no cuenta en
+   «en riesgo».
+5. **Promedio inflado:** `CourseOverviewService.averageAttendance` no cuenta a
+   quien tiene `totalSessions == 0` (inscrito tarde sin sesiones aún, que hoy
+   aporta 100 %). Si nadie tiene sesiones, devuelve `null`.
+6. **Chip «Todos N» de Reportes** (`course_reports_screen.dart` ~423/503):
+   dice un número distinto de las filas mostradas porque la lista incluye a los
+   retirados. El chip «Todos» muestra el número de filas que lista; la tarjeta
+   de cantidad de estudiantes, si la hay, cuenta solo activos.
+7. **`exportWithFallback`** (`course_reports_screen.dart`) solo usa el
+   respaldo ante un error de **escritura** (`FileSystemException`); otros
+   errores (p. ej. curso inexistente) se relanzan sin repetir el trabajo.
+8. **Pruebas que faltan** (en `test/lecturas_y_fechas_test.dart`):
+   - un retirado **en riesgo** (muchas faltas) no cuenta en `atRiskCount` y
+     lleva «—» en `EstadoAlerta`;
+   - la regla «sesión sin acta + `enrolledAt`»: un estudiante con `enrolledAt`
+     posterior al inicio de una sesión sin acta no la tiene como falla;
+   - retirar a alguien no cambia «presentes de total» de una sesión con acta;
+   - el promedio ignora a quien tiene 0 sesiones.
+   - Si alguna prueba usa `sleep` para comparar `lastModified`, cámbiala por
+     `File.setLastModified` con fechas explícitas.
