@@ -203,7 +203,7 @@ class HelpCenterScreen extends StatelessWidget {
                     if (onOpenPermissions != null) {
                       onOpenPermissions!(context);
                     } else {
-                      showHardwareDiagnosticDialog(context);
+                      showHardwareDiagnosticDialog(context, needsCamera: content.studentView);
                     }
                   },
                 ),
