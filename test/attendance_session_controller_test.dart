@@ -451,7 +451,7 @@ void main() {
     );
 
     test(
-      '2.2 processIncomingStudentPacket es idempotente ante recepciones repetidas y actualiza RSSI',
+      '2.2 processIncomingStudentPacket es idempotente ante recepciones repetidas y conserva el primer registro',
       () async {
         final state = await controller.startTeacherSession(
           course: course,
@@ -480,7 +480,7 @@ void main() {
         expect(recordsFirst, hasLength(1));
         expect(recordsFirst.first.rssiAvg, -70.0);
 
-        // Envío repetido con mejor señal
+        // Envío repetido con otra señal: se acepta sin sobreescribir el registro previo
         final second = await controller.processIncomingStudentPacket(
           packet16: packet,
           rssi: -55,
@@ -492,7 +492,7 @@ void main() {
           state.session.id,
         );
         expect(recordsSecond, hasLength(1));
-        expect(recordsSecond.first.rssiAvg, -55.0);
+        expect(recordsSecond.first.rssiAvg, -70.0);
         expect(state.bitmapHex, '0100000000000000');
       },
     );

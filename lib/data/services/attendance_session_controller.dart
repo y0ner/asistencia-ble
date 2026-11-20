@@ -446,16 +446,22 @@ class AttendanceSessionController {
   Future<ActiveCourseSessionState> startTeacherSession({
     required CourseModel course,
     int? customPin,
+    DateTime? nowOverride,
   }) {
     _ensureNotDisposed();
     return _serialize(
-      () => _startTeacherSession(course: course, customPin: customPin),
+      () => _startTeacherSession(
+        course: course,
+        customPin: customPin,
+        nowOverride: nowOverride,
+      ),
     );
   }
 
   Future<ActiveCourseSessionState> _startTeacherSession({
     required CourseModel course,
     int? customPin,
+    DateTime? nowOverride,
   }) async {
     _ensureNotDisposed();
     final current = _state;
@@ -466,13 +472,21 @@ class AttendanceSessionController {
     }
 
     await _stopBleRuntime();
+    if (_disposed) {
+      throw StateError('AttendanceSessionController ya fue liberado.');
+    }
     _signedActa = null;
     _lastDetectionOutcome = null;
     _lastBleWarning = null;
     _lastAsyncError = null;
     _closing = false;
 
+    final now = nowOverride ?? DateTime.now();
+
     final students = await database.getStudentsByCourse(course.id);
+    if (_disposed) {
+      throw StateError('AttendanceSessionController ya fue liberado.');
+    }
     final secrets = <int, String>{
       for (final StudentModel student in students)
         student.bitIndex: student.personalSecret,
@@ -481,29 +495,82 @@ class AttendanceSessionController {
     // Una sola sesión abierta por clase: si ya hay una, se retoma (mismo PIN y
     // los que ya llegaron) en vez de crear otra.
     final resumable = await database.consolidateOpenSession(course.id);
+    if (_disposed) {
+      throw StateError('AttendanceSessionController ya fue liberado.');
+    }
     late final SessionModel session;
     late final int pin;
     var bitmap = BlePacketCodec.createEmptyBitmap8();
+    var resumedExisting = false;
+
     if (resumable != null) {
-      session = resumable;
-      pin = int.tryParse(resumable.roomPin) ?? _generatePin();
-      final records = await database.getAttendanceRecordsBySession(resumable.id);
-      for (final record in records) {
-        if (record.bitIndex >= 0 && record.bitIndex < AppConstants.bitmapBitCount) {
-          bitmap = BlePacketCodec.setStudentBit(bitmap, record.bitIndex);
+      final startedAtLocal = DateTime.parse(resumable.startedAt).toLocal();
+      final nowLocal = now.toLocal();
+      final isSameLocalDay = startedAtLocal.year == nowLocal.year &&
+          startedAtLocal.month == nowLocal.month &&
+          startedAtLocal.day == nowLocal.day;
+
+      if (isSameLocalDay) {
+        resumedExisting = true;
+        session = resumable;
+        pin = int.tryParse(resumable.roomPin) ?? _generatePin();
+        final records =
+            await database.getAttendanceRecordsBySession(resumable.id);
+        if (_disposed) {
+          throw StateError('AttendanceSessionController ya fue liberado.');
+        }
+        for (final record in records) {
+          if (record.bitIndex >= 0 &&
+              record.bitIndex < AppConstants.bitmapBitCount) {
+            bitmap = BlePacketCodec.setStudentBit(bitmap, record.bitIndex);
+          }
+        }
+      } else {
+        final records =
+            await database.getAttendanceRecordsBySession(resumable.id);
+        if (_disposed) {
+          throw StateError('AttendanceSessionController ya fue liberado.');
+        }
+        if (records.isEmpty) {
+          await database.deleteSession(resumable.id);
+          if (_disposed) {
+            throw StateError('AttendanceSessionController ya fue liberado.');
+          }
+        } else {
+          DateTime? mostRecent;
+          for (final r in records) {
+            final dt = DateTime.tryParse(r.recordedAt);
+            if (dt != null && (mostRecent == null || dt.isAfter(mostRecent))) {
+              mostRecent = dt;
+            }
+          }
+          final closedAt = mostRecent ?? DateTime.parse(resumable.startedAt);
+          await _buildAndSaveActa(
+            session: resumable,
+            course: course,
+            closedAt: closedAt,
+          );
+          if (_disposed) {
+            throw StateError('AttendanceSessionController ya fue liberado.');
+          }
         }
       }
-    } else {
+    }
+
+    if (!resumedExisting) {
       pin = customPin ?? _generatePin();
       _validatePin(pin);
       session = SessionModel(
         id: _uuid.v4(),
         courseId: course.id,
-        startedAt: DateTime.now().toIso8601String(),
+        startedAt: now.toIso8601String(),
         roomPin: pin.toString().padLeft(AppConstants.roomPinLength, '0'),
         bitmapHex: AppConstants.emptyBitmapHex,
       );
       await database.upsertSession(session);
+      if (_disposed) {
+        throw StateError('AttendanceSessionController ya fue liberado.');
+      }
     }
 
     final activeState = ActiveCourseSessionState(
@@ -515,8 +582,16 @@ class AttendanceSessionController {
       secretHexByBitIndex: secrets,
     );
     _state = activeState;
+
+    if (_disposed) {
+      throw StateError('AttendanceSessionController ya fue liberado.');
+    }
+
     _subscribeToBle();
     await _tryStartScan();
+    if (_disposed) {
+      throw StateError('AttendanceSessionController ya fue liberado.');
+    }
     await _publishTeacherEcho();
     return activeState;
   }
@@ -596,6 +671,21 @@ class AttendanceSessionController {
         timeTick: currentTimeTick,
         bitmapHex: state.bitmapHex,
       );
+    }
+
+    // Si el bit ya está encendido en el Bitmap, la asistencia ya fue registrada.
+    // Se devuelve resultado aceptado sin escribir en la base ni volver a emitir el eco.
+    if (BlePacketCodec.isStudentBitSet(state.bitmap8, bitIndex)) {
+      final outcome = StudentDetectionOutcome(
+        isAccepted: true,
+        student: student,
+        bitIndex: bitIndex,
+        rssi: rssi,
+        timeTick: currentTimeTick,
+        bitmapHex: state.bitmapHex,
+      );
+      _lastDetectionOutcome = outcome;
+      return outcome;
     }
 
     final nextBitmap = BlePacketCodec.setStudentBit(state.bitmap8, bitIndex);
@@ -682,18 +772,42 @@ class AttendanceSessionController {
 
     if (isPresent) {
       final cleanObservation = observation?.trim();
-      final record = AttendanceRecordModel(
-        id: _recordId(state.session.id, student.id),
-        sessionId: state.session.id,
-        studentId: student.id,
-        bitIndex: student.bitIndex,
-        method: AppConstants.attendanceMethodManualInverted,
-        recordedAt: now.toIso8601String(),
-        timeTick: BlePacketCodec.computeTimeTick(now),
-        observation: cleanObservation == null || cleanObservation.isEmpty
-            ? null
-            : cleanObservation,
-      );
+      final finalObservation =
+          cleanObservation == null || cleanObservation.isEmpty
+              ? null
+              : cleanObservation;
+
+      final records =
+          await database.getAttendanceRecordsBySession(state.session.id);
+      final existing =
+          records.where((r) => r.studentId == student.id).firstOrNull;
+
+      final AttendanceRecordModel record;
+      if (existing != null) {
+        record = AttendanceRecordModel(
+          id: existing.id,
+          sessionId: existing.sessionId,
+          studentId: existing.studentId,
+          bitIndex: existing.bitIndex,
+          method: existing.method,
+          recordedAt: existing.recordedAt,
+          timeTick: existing.timeTick,
+          hmacTag: existing.hmacTag,
+          rssiAvg: existing.rssiAvg,
+          observation: finalObservation,
+        );
+      } else {
+        record = AttendanceRecordModel(
+          id: _recordId(state.session.id, student.id),
+          sessionId: state.session.id,
+          studentId: student.id,
+          bitIndex: student.bitIndex,
+          method: AppConstants.attendanceMethodManualInverted,
+          recordedAt: now.toIso8601String(),
+          timeTick: BlePacketCodec.computeTimeTick(now),
+          observation: finalObservation,
+        );
+      }
       await database.upsertAttendanceRecord(record, bitmapHex: bitmapHex);
     } else {
       await database.deleteAttendanceRecord(
@@ -716,6 +830,102 @@ class AttendanceSessionController {
     );
   }
 
+  Future<({SignedSessionActa acta, Uint8List bitmap, String actHash})>
+      _buildAndSaveActa({
+    required SessionModel session,
+    required CourseModel course,
+    required DateTime closedAt,
+    Uint8List? initialBitmap8,
+  }) async {
+    final closedAtIso = closedAt.toIso8601String();
+
+    final students = await database.getStudentsByCourse(course.id);
+    students.sort(
+      (StudentModel left, StudentModel right) =>
+          left.bitIndex.compareTo(right.bitIndex),
+    );
+    final storedRecords = await database.getAttendanceRecordsBySession(
+      session.id,
+    );
+    final recordsByStudent = <String, AttendanceRecordModel>{
+      for (final AttendanceRecordModel record in storedRecords)
+        record.studentId: record,
+    };
+
+    var bitmap = initialBitmap8 != null
+        ? Uint8List.fromList(initialBitmap8)
+        : BlePacketCodec.createEmptyBitmap8();
+    var presentBleCount = 0;
+    var presentManualCount = 0;
+    final actaRecords = <SessionActaRecord>[];
+
+    for (final StudentModel student in students) {
+      final record = recordsByStudent[student.id];
+      final bool present = record != null;
+      if (present) {
+        bitmap = BlePacketCodec.setStudentBit(bitmap, student.bitIndex);
+        if (record.method == AppConstants.attendanceMethodBleHmac) {
+          presentBleCount++;
+        } else {
+          presentManualCount++;
+        }
+      } else {
+        bitmap = BlePacketCodec.clearStudentBit(bitmap, student.bitIndex);
+      }
+
+      actaRecords.add(
+        SessionActaRecord(
+          bitIndex: student.bitIndex,
+          studentCode: student.studentCode,
+          fullName: student.fullName,
+          status: present
+              ? AppConstants.attendanceStatusPresent
+              : AppConstants.attendanceStatusAbsent,
+          method: present ? record.method : null,
+          verifyCode: present ? record.hmacTag : null,
+          rssi: present ? record.rssiAvg?.round() : null,
+        ),
+      );
+    }
+
+    final bitmapHex = _bitmapToHex(bitmap);
+    final unsignedActa = SignedSessionActa(
+      sessionId: session.id,
+      courseId: course.id,
+      courseCode: course.code,
+      courseName: course.name,
+      sessionPin: session.roomPin,
+      startedAtIso: session.startedAt,
+      closedAtIso: closedAtIso,
+      totalEnrolled: students.length,
+      presentBleCount: presentBleCount,
+      presentManualCount: presentManualCount,
+      absentCount: students.length - presentBleCount - presentManualCount,
+      bitmapHex: bitmapHex,
+      records: actaRecords,
+      actaHmacSignature: '',
+    );
+    final signature = _signCanonicalJson(
+      unsignedActa.canonicalJson,
+      course.courseSecret,
+    );
+    final acta = unsignedActa.copyWith(actaHmacSignature: signature);
+    final actHash = sha256
+        .convert(utf8.encode(acta.canonicalJson))
+        .toString();
+
+    await database.closeSessionWithActa(
+      sessionId: session.id,
+      closedAt: closedAtIso,
+      bitmapHex: bitmapHex,
+      actaJson: jsonEncode(acta.toJson()),
+      actaHmacSignature: signature,
+      actHash: actHash,
+    );
+
+    return (acta: acta, bitmap: bitmap, actHash: actHash);
+  }
+
   Future<SignedSessionActa> _closeAndSignSession({
     DateTime? closedAtOverride,
   }) async {
@@ -736,98 +946,30 @@ class AttendanceSessionController {
     try {
       await _stopBleRuntime();
       final closedAt = closedAtOverride ?? DateTime.now();
-      final closedAtIso = closedAt.toIso8601String();
-
-      final students = await database.getStudentsByCourse(state.course.id);
-      students.sort(
-        (StudentModel left, StudentModel right) =>
-            left.bitIndex.compareTo(right.bitIndex),
-      );
-      final storedRecords = await database.getAttendanceRecordsBySession(
-        state.session.id,
-      );
-      final recordsByStudent = <String, AttendanceRecordModel>{
-        for (final AttendanceRecordModel record in storedRecords)
-          record.studentId: record,
-      };
-
-      var bitmap = Uint8List.fromList(state.bitmap8);
-      var presentBleCount = 0;
-      var presentManualCount = 0;
-      final actaRecords = <SessionActaRecord>[];
-
-      for (final StudentModel student in students) {
-        final record = recordsByStudent[student.id];
-        final bool present = record != null;
-        if (present) {
-          bitmap = BlePacketCodec.setStudentBit(bitmap, student.bitIndex);
-          if (record.method == AppConstants.attendanceMethodBleHmac) {
-            presentBleCount++;
-          } else {
-            presentManualCount++;
-          }
-        } else {
-          bitmap = BlePacketCodec.clearStudentBit(bitmap, student.bitIndex);
-        }
-
-        actaRecords.add(
-          SessionActaRecord(
-            bitIndex: student.bitIndex,
-            studentCode: student.studentCode,
-            fullName: student.fullName,
-            status: present
-                ? AppConstants.attendanceStatusPresent
-                : AppConstants.attendanceStatusAbsent,
-            method: present ? record.method : null,
-            verifyCode: present ? record.hmacTag : null,
-            rssi: present ? record.rssiAvg?.round() : null,
-          ),
-        );
-      }
-
-      final bitmapHex = _bitmapToHex(bitmap);
-      final unsignedActa = SignedSessionActa(
-        sessionId: state.session.id,
-        courseId: state.course.id,
-        courseCode: state.course.code,
-        courseName: state.course.name,
-        sessionPin: state.session.roomPin,
-        startedAtIso: state.session.startedAt,
-        closedAtIso: closedAtIso,
-        totalEnrolled: students.length,
-        presentBleCount: presentBleCount,
-        presentManualCount: presentManualCount,
-        absentCount: students.length - presentBleCount - presentManualCount,
-        bitmapHex: bitmapHex,
-        records: actaRecords,
-        actaHmacSignature: '',
-      );
-      final signature = _signCanonicalJson(
-        unsignedActa.canonicalJson,
-        state.course.courseSecret,
-      );
-      final acta = unsignedActa.copyWith(actaHmacSignature: signature);
-      final actHash = sha256
-          .convert(utf8.encode(acta.canonicalJson))
-          .toString();
-
-      await database.closeSessionWithActa(
-        sessionId: state.session.id,
-        closedAt: closedAtIso,
-        bitmapHex: bitmapHex,
-        actaJson: jsonEncode(acta.toJson()),
-        actaHmacSignature: signature,
-        actHash: actHash,
+      final result = await _buildAndSaveActa(
+        session: state.session,
+        course: state.course,
+        closedAt: closedAt,
+        initialBitmap8: state.bitmap8,
       );
 
-      _applyBitmap(state, bitmap);
+      _applyBitmap(state, result.bitmap);
       state.session = state.session.copyWith(
-        closedAt: closedAtIso,
-        bitmapHex: bitmapHex,
-        actHash: actHash,
+        closedAt: closedAt.toIso8601String(),
+        bitmapHex: result.acta.bitmapHex,
+        actHash: result.actHash,
       );
-      _signedActa = acta;
-      return acta;
+      _signedActa = result.acta;
+      _closing = false;
+      return result.acta;
+    } catch (error) {
+      _closing = false;
+      if (!_disposed && _state != null && _state!.isOpen) {
+        _subscribeToBle();
+        await _tryStartScan();
+        await _publishTeacherEcho();
+      }
+      rethrow;
     } finally {
       _closing = false;
     }
@@ -918,6 +1060,7 @@ class AttendanceSessionController {
     _closing = true;
     await _stopBleRuntime();
     await _operationQueue;
+    await _stopBleRuntime();
     if (_ownsBleService) {
       await _bleService.dispose();
     }
