@@ -21,6 +21,7 @@ void main() {
         },
         bluetoothAdapterStateProvider: () =>
             Stream<BluetoothAdapterState>.value(BluetoothAdapterState.on),
+        locationServiceStatusChecker: () async => ServiceStatus.enabled,
       );
 
       final result = await service.ensureReady();
@@ -50,6 +51,7 @@ void main() {
         },
         bluetoothAdapterStateProvider: () =>
             Stream<BluetoothAdapterState>.value(BluetoothAdapterState.on),
+        locationServiceStatusChecker: () async => ServiceStatus.enabled,
       );
 
       final result = await service.ensureReady();
@@ -80,6 +82,7 @@ void main() {
         },
         bluetoothAdapterStateProvider: () =>
             Stream<BluetoothAdapterState>.value(BluetoothAdapterState.on),
+        locationServiceStatusChecker: () async => ServiceStatus.enabled,
       );
 
       final result = await service.ensureReady();
@@ -134,6 +137,7 @@ void main() {
         },
         bluetoothAdapterStateProvider: () =>
             Stream<BluetoothAdapterState>.value(BluetoothAdapterState.on),
+        locationServiceStatusChecker: () async => ServiceStatus.enabled,
       );
 
       final result = await service.ensureReady();
@@ -178,6 +182,7 @@ void main() {
             <Permission, PermissionStatus>{},
         bluetoothAdapterStateProvider: () =>
             Stream<BluetoothAdapterState>.value(BluetoothAdapterState.on),
+        locationServiceStatusChecker: () async => ServiceStatus.enabled,
       );
 
       final result = await service.ensureReady();

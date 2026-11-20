@@ -124,6 +124,7 @@ void main() {
               body: HardwareDiagnosticDialog(
                 isAndroid12OrHigherOverride: false,
                 permissionChecker: (_) async => PermissionStatus.granted,
+                locationServiceChecker: () async => ServiceStatus.enabled,
               ),
             ),
           ),
@@ -131,11 +132,14 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        expect(find.text('Buscar celulares cercanos'), findsOneWidget);
-        expect(find.text('Avisar a celulares cercanos'), findsOneWidget);
-        expect(find.text('Conectar con celulares cercanos'), findsOneWidget);
+        // Antes de Android 12 los permisos de Bluetooth cercano no existen:
+        // mostrarlos los dejaba siempre en «Falta».
+        expect(find.text('Buscar celulares cercanos'), findsNothing);
+        expect(find.text('Avisar a celulares cercanos'), findsNothing);
+        expect(find.text('Conectar con celulares cercanos'), findsNothing);
         expect(find.textContaining('Cámara ('), findsOneWidget);
-        expect(find.textContaining('Ubicación'), findsOneWidget);
+        expect(find.text('Ubicación'), findsOneWidget);
+        expect(find.text('Ubicación del celular encendida'), findsOneWidget);
       },
     );
   });

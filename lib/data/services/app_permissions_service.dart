@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/platform/android_sdk.dart';
@@ -7,6 +8,7 @@ import '../../core/platform/android_sdk.dart';
 typedef PermissionStatusReader = Future<PermissionStatus> Function(Permission permission);
 typedef PermissionsRequester = Future<Map<Permission, PermissionStatus>> Function(List<Permission> permissions);
 typedef SdkVersionReader = FutureOr<int?> Function();
+typedef LocationServiceStatusReader = Future<ServiceStatus> Function();
 
 /// Un permiso que la app necesita y por qué, en palabras normales.
 class AppPermissionItem {
@@ -21,7 +23,13 @@ class AppPermissionItem {
 
 /// Estado de los permisos al abrir la app.
 class AppPermissionsStatus {
-  const AppPermissionsStatus({required this.items, required this.granted, required this.permanentlyDenied});
+  const AppPermissionsStatus({
+    required this.items,
+    required this.granted,
+    required this.permanentlyDenied,
+    this.isLocationServiceEnabled = true,
+    this.locationServiceMessage,
+  });
 
   final List<AppPermissionItem> items;
 
@@ -31,7 +39,14 @@ class AppPermissionsStatus {
   /// Ítems que Android ya no deja pedir: hay que ir a Ajustes.
   final Set<AppPermissionItem> permanentlyDenied;
 
-  bool get allGranted => granted.length == items.length;
+  /// Indica si la ubicación del sistema está encendida (en Android 11 o anterior).
+  final bool isLocationServiceEnabled;
+
+  /// Mensaje para el usuario si la ubicación del sistema está apagada.
+  final String? locationServiceMessage;
+
+  bool get allGranted =>
+      granted.length == items.length && isLocationServiceEnabled;
 
   bool get needsSettings => permanentlyDenied.isNotEmpty;
 }
@@ -47,14 +62,18 @@ class AppPermissionsService {
     PermissionStatusReader? statusReader,
     PermissionsRequester? requester,
     SdkVersionReader? sdkVersion,
+    LocationServiceStatusReader? locationServiceStatusReader,
   })  : _statusReader = statusReader ?? ((Permission p) => p.status),
         _requester = requester ?? ((List<Permission> list) => list.request()),
-        _sdkVersion = sdkVersion ?? androidSdkInt;
+        _sdkVersion = sdkVersion ?? androidSdkInt,
+        _locationServiceStatusReader = locationServiceStatusReader ??
+            (() => Permission.location.serviceStatus);
 
   final bool needsCamera;
   final PermissionStatusReader _statusReader;
   final PermissionsRequester _requester;
   final SdkVersionReader _sdkVersion;
+  final LocationServiceStatusReader _locationServiceStatusReader;
 
   Future<List<AppPermissionItem>> requiredItems() async {
     final sdk = await _sdkVersion() ?? 31;
@@ -113,7 +132,33 @@ class AppPermissionsService {
         blocked.add(item);
       }
     }
-    return AppPermissionsStatus(items: items, granted: granted, permanentlyDenied: blocked);
+
+    final sdk = await _sdkVersion() ?? 31;
+    var isLocEnabled = true;
+    String? locMessage;
+
+    if (sdk <= 30) {
+      try {
+        final locStatus = await _locationServiceStatusReader();
+        isLocEnabled = locStatus == ServiceStatus.enabled;
+      } catch (error) {
+        debugPrint('Error al verificar el servicio de ubicación: $error');
+        isLocEnabled = false;
+      }
+      if (!isLocEnabled) {
+        locMessage =
+            'Activa la ubicación del celular. En Android 11 o anterior el Bluetooth '
+            'la necesita para encontrar otros celulares; la app no guarda tu ubicación.';
+      }
+    }
+
+    return AppPermissionsStatus(
+      items: items,
+      granted: granted,
+      permanentlyDenied: blocked,
+      isLocationServiceEnabled: isLocEnabled,
+      locationServiceMessage: locMessage,
+    );
   }
 
   Future<bool> openSettings() => openAppSettings();

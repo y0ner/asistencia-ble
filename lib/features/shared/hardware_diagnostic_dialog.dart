@@ -15,11 +15,14 @@ Future<bool> isAndroid12OrHigher() async {
 }
 
 /// Despliega el modal de diagnóstico de hardware en Android o Linux Desktop.
-Future<void> showHardwareDiagnosticDialog(BuildContext context) async {
+Future<void> showHardwareDiagnosticDialog(
+  BuildContext context, {
+  bool needsCamera = true,
+}) async {
   if (Platform.isAndroid) {
     await showDialog<void>(
       context: context,
-      builder: (_) => const HardwareDiagnosticDialog(),
+      builder: (_) => HardwareDiagnosticDialog(needsCamera: needsCamera),
     );
   } else {
     await showDialog<void>(
@@ -29,20 +32,39 @@ Future<void> showHardwareDiagnosticDialog(BuildContext context) async {
   }
 }
 
+class _DiagnosticRow {
+  const _DiagnosticRow({required this.title, this.permission});
+
+  final String title;
+  final Permission? permission;
+}
+
 /// Modal de diagnóstico de hardware en Android usando `permission_handler`.
 class HardwareDiagnosticDialog extends StatefulWidget {
   const HardwareDiagnosticDialog({
     super.key,
     this.isAndroid12OrHigherOverride,
     this.permissionChecker,
+    this.sdkInt,
+    this.needsCamera = true,
+    this.locationServiceChecker,
   });
 
   /// Permite fijar el valor de versión de Android para pruebas unitarias y de widgets.
   final bool? isAndroid12OrHigherOverride;
 
+  /// Permite inyectar directamente la versión del SDK de Android.
+  final int? sdkInt;
+
+  /// Indica si la app requiere cámara (falso para Docente, verdadero para Estudiante).
+  final bool needsCamera;
+
   /// Función opcional para consultar el estado de los permisos (por defecto la plataforma vía permission_handler).
   final Future<PermissionStatus> Function(Permission permission)?
       permissionChecker;
+
+  /// Función opcional para consultar el estado del servicio de ubicación del sistema.
+  final Future<ServiceStatus> Function()? locationServiceChecker;
 
   @override
   State<HardwareDiagnosticDialog> createState() =>
@@ -51,8 +73,8 @@ class HardwareDiagnosticDialog extends StatefulWidget {
 
 class _HardwareDiagnosticDialogState extends State<HardwareDiagnosticDialog> {
   bool _isLoading = true;
-  Map<Permission, PermissionStatus> _statuses = <Permission, PermissionStatus>{};
-  List<MapEntry<Permission, String>> _permissions = <MapEntry<Permission, String>>[];
+  Map<String, PermissionStatus> _statuses = <String, PermissionStatus>{};
+  List<_DiagnosticRow> _rows = <_DiagnosticRow>[];
 
   @override
   void initState() {
@@ -67,49 +89,84 @@ class _HardwareDiagnosticDialogState extends State<HardwareDiagnosticDialog> {
     return permission.status;
   }
 
+  Future<PermissionStatus> _checkLocationService() async {
+    try {
+      final status = widget.locationServiceChecker != null
+          ? await widget.locationServiceChecker!()
+          : await Permission.location.serviceStatus;
+      return status == ServiceStatus.enabled
+          ? PermissionStatus.granted
+          : PermissionStatus.denied;
+    } catch (e) {
+      debugPrint('Error al verificar servicio de ubicación: $e');
+      return PermissionStatus.denied;
+    }
+  }
+
+  /// Filas del diagnóstico según la versión de Android: los permisos de
+  /// Bluetooth cercano solo existen desde Android 12 (SDK 31); antes, el
+  /// escaneo depende del permiso y del servicio de ubicación.
+  List<_DiagnosticRow> _rowsFor(int sdk) {
+    return <_DiagnosticRow>[
+      if (sdk >= 31) ...const <_DiagnosticRow>[
+        _DiagnosticRow(
+          title: 'Buscar celulares cercanos',
+          permission: Permission.bluetoothScan,
+        ),
+        _DiagnosticRow(
+          title: 'Avisar a celulares cercanos',
+          permission: Permission.bluetoothAdvertise,
+        ),
+        _DiagnosticRow(
+          title: 'Conectar con celulares cercanos',
+          permission: Permission.bluetoothConnect,
+        ),
+      ] else ...const <_DiagnosticRow>[
+        _DiagnosticRow(
+          title: 'Ubicación',
+          permission: Permission.locationWhenInUse,
+        ),
+        _DiagnosticRow(title: 'Ubicación del celular encendida'),
+      ],
+      if (widget.needsCamera)
+        const _DiagnosticRow(
+          title: 'Cámara (para leer el código de la clase)',
+          permission: Permission.camera,
+        ),
+    ];
+  }
+
   Future<void> _initAndCheckPermissions() async {
     setState(() => _isLoading = true);
 
-    final isAndroid12 = widget.isAndroid12OrHigherOverride ??
-        await isAndroid12OrHigher();
+    final override = widget.isAndroid12OrHigherOverride;
+    final sdk = widget.sdkInt ??
+        (override == null ? null : (override ? 31 : 30)) ??
+        await androidSdkInt() ??
+        31;
+    final rows = _rowsFor(sdk);
 
-    final permissions = <MapEntry<Permission, String>>[
-      const MapEntry(
-        Permission.bluetoothScan,
-        'Buscar celulares cercanos',
-      ),
-      const MapEntry(
-        Permission.bluetoothAdvertise,
-        'Avisar a celulares cercanos',
-      ),
-      const MapEntry(
-        Permission.bluetoothConnect,
-        'Conectar con celulares cercanos',
-      ),
-      if (!isAndroid12)
-        const MapEntry(
-          Permission.locationWhenInUse,
-          'Ubicación (solo en Android 11 o anterior)',
-        ),
-      const MapEntry(
-        Permission.camera,
-        'Cámara (para leer el código de la clase)',
-      ),
-    ];
+    _rows = rows;
+    await _evaluateAllStatuses();
+  }
 
-    final results = <Permission, PermissionStatus>{};
-    for (final entry in permissions) {
-      try {
-        results[entry.key] = await _checkPermission(entry.key);
-      } catch (e) {
-        debugPrint('Error al verificar permiso ${entry.key}: $e');
-        results[entry.key] = PermissionStatus.denied;
+  Future<void> _evaluateAllStatuses() async {
+    final results = <String, PermissionStatus>{};
+    for (final row in _rows) {
+      if (row.permission != null) {
+        try {
+          results[row.title] = await _checkPermission(row.permission!);
+        } catch (e) {
+          debugPrint('Error al verificar permiso ${row.permission}: $e');
+          results[row.title] = PermissionStatus.denied;
+        }
+      } else {
+        results[row.title] = await _checkLocationService();
       }
     }
 
     if (mounted) {
       setState(() {
-        _permissions = permissions;
         _statuses = results;
         _isLoading = false;
       });
@@ -118,30 +175,20 @@ class _HardwareDiagnosticDialogState extends State<HardwareDiagnosticDialog> {
 
   Future<void> _requestPermissions() async {
     setState(() => _isLoading = true);
-    final list = _permissions.map((e) => e.key).toList();
-    try {
-      await list.request();
-    } catch (e) {
-      debugPrint('Error al solicitar permisos: $e');
+    final toRequest = _rows
+        .where((r) => r.permission != null && _statuses[r.title] != PermissionStatus.granted)
+        .map((r) => r.permission!)
+        .toList();
+
+    if (toRequest.isNotEmpty) {
+      try {
+        await toRequest.request();
+      } catch (e) {
+        debugPrint('Error al solicitar permisos: $e');
+      }
     }
 
-    if (mounted) {
-      final results = <Permission, PermissionStatus>{};
-      for (final entry in _permissions) {
-        try {
-          results[entry.key] = await _checkPermission(entry.key);
-        } catch (e) {
-          debugPrint('Error al verificar permiso ${entry.key}: $e');
-          results[entry.key] = PermissionStatus.denied;
-        }
-      }
-      if (mounted) {
-        setState(() {
-          _statuses = results;
-          _isLoading = false;
-        });
-      }
-    }
+    await _evaluateAllStatuses();
   }
 
   Widget _buildStatusChip(PermissionStatus? status) {
@@ -159,7 +206,7 @@ class _HardwareDiagnosticDialogState extends State<HardwareDiagnosticDialog> {
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
     final allGranted = !_isLoading &&
-        _permissions.every((e) => _statuses[e.key]?.isGranted ?? false);
+        _rows.every((r) => _statuses[r.title]?.isGranted ?? false);
     final anyBlocked = _statuses.values.any((s) => s.isPermanentlyDenied);
 
     return AlertDialog(
@@ -182,16 +229,16 @@ class _HardwareDiagnosticDialogState extends State<HardwareDiagnosticDialog> {
             else
               UiListGroup(
                 children: <Widget>[
-                  for (final entry in _permissions)
+                  for (final row in _rows)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: UiSpace.md, vertical: UiSpace.md),
                       child: Row(
                         children: <Widget>[
                           Expanded(
-                            child: Text(entry.value, style: UiText.bodyStrong.copyWith(color: c.ink)),
+                            child: Text(row.title, style: UiText.bodyStrong.copyWith(color: c.ink)),
                           ),
                           const SizedBox(width: UiSpace.sm),
-                          _buildStatusChip(_statuses[entry.key]),
+                          _buildStatusChip(_statuses[row.title]),
                         ],
                       ),
                     ),
