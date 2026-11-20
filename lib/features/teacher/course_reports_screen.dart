@@ -93,6 +93,82 @@ class CourseReportsScreen extends StatefulWidget {
     );
   }
 
+  /// Exporta el libro oficial intentando primero en [primaryDirectoryPath]
+  /// (por defecto `/storage/emulated/0/Download` si existe). Si la escritura falla,
+  /// utiliza [fallbackDirectoryPath] (por defecto la carpeta privada `reports`).
+  @visibleForTesting
+  static Future<String> exportWithFallback({
+    required ExcelReportService excelService,
+    required String courseId,
+    String? primaryDirectoryPath,
+    String? fallbackDirectoryPath,
+  }) async {
+    final fallbackDir = fallbackDirectoryPath ??
+        p.join(Directory.systemTemp.path, 'reports');
+
+    final primaryDir = primaryDirectoryPath ??
+        (await Directory('/storage/emulated/0/Download').exists()
+            ? '/storage/emulated/0/Download'
+            : fallbackDir);
+
+    if (primaryDir != fallbackDir) {
+      try {
+        return await excelService.exportWorkbookToFile(
+          courseId: courseId,
+          directoryPath: primaryDir,
+        );
+      } catch (e) {
+        debugPrint(
+          'Error al escribir en directorio principal de exportación ($primaryDir): $e. '
+          'Usando directorio de respaldo ($fallbackDir).',
+        );
+        return await excelService.exportWorkbookToFile(
+          courseId: courseId,
+          directoryPath: fallbackDir,
+        );
+      }
+    } else {
+      return await excelService.exportWorkbookToFile(
+        courseId: courseId,
+        directoryPath: fallbackDir,
+      );
+    }
+  }
+
+  /// Busca el archivo exportado en [directoriesToCheck] (por defecto Descargas y
+  /// la carpeta privada de reportes) y retorna el más recientemente modificado.
+  @visibleForTesting
+  static Future<File?> resolveLatestExportedFile({
+    required CourseModel course,
+    List<String>? directoriesToCheck,
+  }) async {
+    final fileName = ExcelReportService.exportFileNameFor(course);
+    final dirs = directoriesToCheck ??
+        <String>[
+          '/storage/emulated/0/Download',
+          p.join(Directory.systemTemp.path, 'reports'),
+        ];
+
+    File? latestFile;
+    DateTime? latestTime;
+
+    for (final dirPath in dirs) {
+      try {
+        final file = File(p.join(dirPath, fileName));
+        if (await file.exists() && await file.length() > 0) {
+          final modified = await file.lastModified();
+          if (latestTime == null || modified.isAfter(latestTime)) {
+            latestTime = modified;
+            latestFile = file;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error al verificar archivo en $dirPath: $e');
+      }
+    }
+    return latestFile;
+  }
+
   @override
   State<CourseReportsScreen> createState() => _CourseReportsScreenState();
 }
@@ -161,33 +237,12 @@ class _CourseReportsScreenState extends State<CourseReportsScreen> {
     }
   }
 
-  Future<String> _resolveExportDirectory() async {
-    final downloadsDir = Directory('/storage/emulated/0/Download');
-    if (await downloadsDir.exists()) {
-      return downloadsDir.path;
-    }
-
-    try {
-      final tempDir = Directory(p.join(Directory.systemTemp.path, 'reports'));
-      if (!await tempDir.exists()) {
-        await tempDir.create(recursive: true);
-      }
-      return tempDir.path;
-    } catch (e) {
-      debugPrint('No se pudo acceder al directorio de reportes: $e');
-      return Directory.systemTemp.path;
-    }
-  }
-
   Future<void> _checkLatestExportedFile() async {
     try {
-      final directoryPath = await _resolveExportDirectory();
-      final file = File(
-        p.join(directoryPath, ExcelReportService.exportFileNameFor(widget.course)),
-      );
-      final exists = await file.exists() && await file.length() > 0;
+      final latest =
+          await CourseReportsScreen.resolveLatestExportedFile(course: widget.course);
       if (mounted) {
-        setState(() => _latestExportedFilePath = exists ? file.path : null);
+        setState(() => _latestExportedFilePath = latest?.path);
       }
     } catch (e) {
       debugPrint('Error al verificar último archivo Excel exportado: $e');
@@ -203,10 +258,9 @@ class _CourseReportsScreenState extends State<CourseReportsScreen> {
     setState(() => _isExporting = true);
 
     try {
-      final targetDirectory = await _resolveExportDirectory();
-      final filePath = await _excelService.exportWorkbookToFile(
+      final filePath = await CourseReportsScreen.exportWithFallback(
+        excelService: _excelService,
         courseId: widget.course.id,
-        directoryPath: targetDirectory,
       );
 
       final file = File(filePath);
@@ -271,13 +325,11 @@ class _CourseReportsScreenState extends State<CourseReportsScreen> {
     }
   }
 
-  double _calculateAverageAttendance(List<StudentAttendanceMetric> students) {
-    if (students.isEmpty) return 100.0;
-    final sum = students.fold<double>(
-      0.0,
-      (double acc, StudentAttendanceMetric s) => acc + s.attendancePercentage,
-    );
-    return (sum / students.length * 10.0).roundToDouble() / 10.0;
+  double? _calculateAverageAttendance(
+    List<StudentAttendanceMetric> students,
+    int closedSessions,
+  ) {
+    return CourseOverviewService.averageAttendance(students, closedSessions);
   }
 
   // Mismo criterio que el Excel y que la pantalla de la clase.
@@ -367,10 +419,14 @@ class _CourseReportsScreenState extends State<CourseReportsScreen> {
 
     final summary = _summary;
     final students = summary?.studentMetrics ?? <StudentAttendanceMetric>[];
-    final allCount = students.length;
+    // Los retirados se listan al final, pero no cuentan como matriculados.
+    final allCount = students.where((s) => s.isActive).length;
     final alertCount = _countStudentsInAlert(students);
     final lossCount = _countStudentsInLoss(students);
-    final avgAttendance = _calculateAverageAttendance(students);
+    final avgAttendance = _calculateAverageAttendance(
+      students,
+      summary?.totalClosedSessions ?? 0,
+    );
     final filteredStudents = _getFilteredStudents(students);
 
     final hasLatest = _latestExportedFilePath != null;
@@ -422,7 +478,9 @@ class _CourseReportsScreenState extends State<CourseReportsScreen> {
                 const SizedBox(width: UiSpace.sm),
                 Expanded(
                   child: UiStatTile(
-                    value: '${avgAttendance.toStringAsFixed(0)} %',
+                    value: avgAttendance != null
+                        ? '${avgAttendance.toStringAsFixed(0)} %'
+                        : '—',
                     label: 'asistencia',
                   ),
                 ),
@@ -497,8 +555,11 @@ class _CourseReportsScreenState extends State<CourseReportsScreen> {
                           final absencesText = s.totalAbsences == 1
                               ? '1 falta'
                               : '${s.totalAbsences} faltas';
-                          final subtitleText =
+                          final attendanceText =
                               'Fue a ${s.totalAttendances} de ${s.totalSessions} · $absencesText';
+                          final subtitleText = s.isRetired
+                              ? 'Retirado · $attendanceText'
+                              : attendanceText;
 
                           return UiPersonRow(
                             name: s.fullName,

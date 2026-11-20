@@ -87,6 +87,7 @@ StudentModel _buildStudent({
   required int bitIndex,
   required String personalSecret,
   String? email,
+  String? enrolledAt,
 }) {
   return StudentModel(
     id: id,
@@ -96,7 +97,7 @@ StudentModel _buildStudent({
     email: email ?? '$studentCode@uniguajira.edu.co',
     bitIndex: bitIndex,
     personalSecret: personalSecret,
-    enrolledAt: '2026-11-06T08:05:00.000Z',
+    enrolledAt: enrolledAt ?? '2026-11-01T06:00:00.000Z',
   );
 }
 
@@ -333,6 +334,9 @@ void main() {
           'TotalInasistencias',
           'PorcentajeAsistencia',
           'EstadoAlerta',
+          'Origen',
+          'Celular vinculado desde',
+          'Estado',
         ]);
 
         // Verificación de filas de estudiantes (4 estudiantes matriculados)
@@ -798,11 +802,11 @@ void main() {
       );
       expect(
         ExcelReportService.exportFileNameFor(raro),
-        'Asistencia_Uniguajira_SIST_401_SIN_DATO.xlsx',
+        'Asistencia_Uniguajira_SIST_401_SIN_DATO_2026-2_x.xlsx',
       );
       expect(
         ExcelReportService.exportFileNameFor(course),
-        'Asistencia_Uniguajira_SIST-401_01.xlsx',
+        'Asistencia_Uniguajira_SIST-401_01_2026-2_course.xlsx',
       );
     });
 
@@ -816,7 +820,7 @@ void main() {
 
         final file = File(filePath);
         expect(file.existsSync(), isTrue);
-        expect(file.path.endsWith('Asistencia_Uniguajira_SIST-401_01.xlsx'), isTrue);
+        expect(file.path.endsWith('Asistencia_Uniguajira_SIST-401_01_2026-2_course.xlsx'), isTrue);
 
         final bytes = await file.readAsBytes();
         expect(bytes.length, greaterThan(0));
