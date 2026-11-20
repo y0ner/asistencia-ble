@@ -58,6 +58,14 @@ class BlePermissionResult {
   /// Indica si al menos un permiso requiere abrir la configuración del sistema.
   bool get requiresAppSettings => permanentlyDeniedPermissions.isNotEmpty;
 
+  /// Indica si no faltan permisos pero el adaptador Bluetooth está apagado (bloqueando la operación).
+  bool get isBluetoothOffBlocking =>
+      missingPermissions.isEmpty && !isBluetoothTurnedOn;
+
+  /// Indica si no faltan permisos pero la ubicación del sistema está apagada en Android 11 o anterior (bloqueando la operación).
+  bool get isLocationServiceOffBlocking =>
+      missingPermissions.isEmpty && isAndroid11OrLower && !isLocationServiceEnabled;
+
   /// Indica si el único problema pendiente es encender el adaptador Bluetooth.
   bool get onlyBluetoothOff =>
       missingPermissions.isEmpty && !isBluetoothTurnedOn && isLocationServiceEnabled;
@@ -193,13 +201,13 @@ class BlePermissionService {
     } else if (missing.isNotEmpty) {
       failureMessage =
           'Faltan permisos de Bluetooth necesarios para operar en el aula.';
+    } else if (!isBtOn) {
+      failureMessage =
+          'El Bluetooth está apagado. Enciéndelo para operar en el aula.';
     } else if (sdkVersion <= 30 && !isLocServiceOn) {
       failureMessage =
           'Activa la ubicación del celular. En Android 11 o anterior el Bluetooth '
           'la necesita para encontrar otros celulares; la app no guarda tu ubicación.';
-    } else if (!isBtOn) {
-      failureMessage =
-          'El Bluetooth está apagado. Enciéndelo para operar en el aula.';
     }
 
     return BlePermissionResult(
@@ -260,3 +268,111 @@ class BlePermissionService {
     }
   }
 }
+
+/// Acción sugerida para resolver un problema de permisos o hardware BLE.
+enum BleAdviceAction {
+  turnOnBluetooth,
+  checkLocation,
+  openSettings,
+  retry,
+}
+
+/// Diagnóstico con textos y acción recomendada para avisar al usuario.
+class BlePermissionAdvice {
+  const BlePermissionAdvice({
+    required this.title,
+    required this.message,
+    required this.action,
+    required this.isBluetoothOff,
+    required this.isLocationOff,
+    required this.requiresSettings,
+  });
+
+  final String title;
+  final String message;
+  final BleAdviceAction action;
+  final bool isBluetoothOff;
+  final bool isLocationOff;
+  final bool requiresSettings;
+}
+
+/// Genera el título, mensaje explicativo y acción recomendada para mostrar en pantalla
+/// según el resultado de [BlePermissionResult] y el propósito [purpose] en infinitivo
+/// (por ejemplo, "tomar asistencia" o "registrar tu asistencia").
+BlePermissionAdvice blePermissionAdvice(
+  BlePermissionResult? result,
+  String purpose, {
+  String? bluetoothMessage,
+}) {
+  if (result == null) {
+    return const BlePermissionAdvice(
+      title: 'No se pudo revisar el Bluetooth',
+      message: 'Inténtalo de nuevo.',
+      action: BleAdviceAction.retry,
+      isBluetoothOff: false,
+      isLocationOff: false,
+      requiresSettings: false,
+    );
+  }
+
+  if (result.isReady) {
+    return const BlePermissionAdvice(
+      title: 'Listo',
+      message: '',
+      action: BleAdviceAction.retry,
+      isBluetoothOff: false,
+      isLocationOff: false,
+      requiresSettings: false,
+    );
+  }
+
+  if (result.isBluetoothOffBlocking) {
+    return BlePermissionAdvice(
+      title: 'El Bluetooth está apagado',
+      message: bluetoothMessage ?? 'Enciéndelo para $purpose.',
+      action: BleAdviceAction.turnOnBluetooth,
+      isBluetoothOff: true,
+      isLocationOff: false,
+      requiresSettings: false,
+    );
+  }
+
+  if (result.isLocationServiceOffBlocking) {
+    return BlePermissionAdvice(
+      title: 'Ubicación desactivada',
+      message: result.failureMessage ??
+          'Activa la ubicación del celular. En Android 11 o anterior el Bluetooth '
+          'la necesita para encontrar otros celulares; la app no guarda tu ubicación.',
+      action: BleAdviceAction.checkLocation,
+      isBluetoothOff: false,
+      isLocationOff: true,
+      requiresSettings: false,
+    );
+  }
+
+  final isAndroid11OrLower = result.isAndroid11OrLower ||
+      result.missingPermissions.contains(Permission.locationWhenInUse);
+  final permissionName =
+      isAndroid11OrLower ? '«Ubicación»' : '«Dispositivos cercanos»';
+
+  if (result.requiresAppSettings) {
+    return BlePermissionAdvice(
+      title: 'Falta un permiso',
+      message: 'Abre los ajustes y permite $permissionName para $purpose.',
+      action: BleAdviceAction.openSettings,
+      isBluetoothOff: false,
+      isLocationOff: false,
+      requiresSettings: true,
+    );
+  }
+
+  return BlePermissionAdvice(
+    title: 'Falta un permiso',
+    message: 'Permite el acceso a $permissionName para $purpose.',
+    action: BleAdviceAction.retry,
+    isBluetoothOff: false,
+    isLocationOff: false,
+    requiresSettings: false,
+  );
+}
+
