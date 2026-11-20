@@ -333,19 +333,45 @@ class UiSceneCanvas {
 
 final RegExp _svgNumber = RegExp(r'[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?');
 
+const int _svgPathCacheLimit = 256;
+final Map<String, Path> _svgPathCache = <String, Path>{};
+
+@visibleForTesting
+int get svgPathCacheSize => _svgPathCache.length;
+
+@visibleForTesting
+void clearSvgPathCache() => _svgPathCache.clear();
+
 /// Convierte el atributo `d` de un `<path>` SVG en un [Path].
 ///
-/// Admite M, L, H, V, C, Q, A y Z, en mayúscula (absoluto) y minúscula
-/// (relativo), y la repetición implícita de un comando.
+/// Admite M, L, H, V, C, S, Q, T, A y Z, en mayúscula (absoluto) y minúscula
+/// (relativo), y la repetición implícita de un comando. Utiliza una caché
+/// interna limitada para no reparsear trazos en cada cuadro.
 Path parseSvgPath(String d) {
+  final cached = _svgPathCache.remove(d);
+  if (cached != null) {
+    _svgPathCache[d] = cached;
+    return Path.from(cached);
+  }
+  final parsed = _parseSvgPathDirect(d);
+  if (_svgPathCache.length >= _svgPathCacheLimit) {
+    _svgPathCache.remove(_svgPathCache.keys.first);
+  }
+  _svgPathCache[d] = parsed;
+  return Path.from(parsed);
+}
+
+Path _parseSvgPathDirect(String d) {
   final path = Path();
   var i = 0;
   var cmd = '';
   var current = Offset.zero;
   var start = Offset.zero;
+  Offset? lastCubicControl;
+  Offset? lastQuadControl;
 
   void skip() {
-    while (i < d.length && (d[i] == ' ' || d[i] == ',' || d[i] == '\n' || d[i] == '\t')) {
+    while (i < d.length && (d[i] == ' ' || d[i] == ',' || d[i] == '\n' || d[i] == '\t' || d[i] == '\r')) {
       i++;
     }
   }
@@ -357,7 +383,35 @@ Path parseSvgPath(String d) {
       throw FormatException('Trazo SVG inválido cerca de la posición $i', d);
     }
     i = match.end;
-    return double.parse(match.group(0)!);
+    var raw = match.group(0)!;
+    if (raw.startsWith('.')) {
+      raw = '0$raw';
+    } else if (raw.startsWith('+.')) {
+      raw = '+0${raw.substring(2)}';
+    } else if (raw.startsWith('-.')) {
+      raw = '-0${raw.substring(2)}';
+    }
+    if (raw.contains('.') && !raw.contains(RegExp(r'\.\d'))) {
+      raw = raw.replaceFirst('.', '.0');
+    }
+    return double.parse(raw);
+  }
+
+  bool flag() {
+    skip();
+    if (i >= d.length) {
+      throw FormatException('Trazo SVG inválido cerca de la posición $i: falta bandera de arco', d);
+    }
+    final ch = d[i];
+    if (ch == '0') {
+      i++;
+      return false;
+    }
+    if (ch == '1') {
+      i++;
+      return true;
+    }
+    throw FormatException('Bandera de arco inválida: $ch cerca de la posición $i', d);
   }
 
   bool moreNumbers() {
@@ -384,34 +438,65 @@ Path parseSvgPath(String d) {
         path.moveTo(current.dx, current.dy);
         // Los pares siguientes son líneas.
         cmd = relative ? 'l' : 'L';
+        lastCubicControl = null;
+        lastQuadControl = null;
       case 'L':
         current = point(number(), number());
         path.lineTo(current.dx, current.dy);
+        lastCubicControl = null;
+        lastQuadControl = null;
       case 'H':
         final x = number();
         current = Offset(relative ? current.dx + x : x, current.dy);
         path.lineTo(current.dx, current.dy);
+        lastCubicControl = null;
+        lastQuadControl = null;
       case 'V':
         final y = number();
         current = Offset(current.dx, relative ? current.dy + y : y);
         path.lineTo(current.dx, current.dy);
+        lastCubicControl = null;
+        lastQuadControl = null;
       case 'C':
         final c1 = point(number(), number());
         final c2 = point(number(), number());
         final end = point(number(), number());
         path.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, end.dx, end.dy);
         current = end;
+        lastCubicControl = c2;
+        lastQuadControl = null;
+      case 'S':
+        final c1 = lastCubicControl != null
+            ? Offset(2 * current.dx - lastCubicControl.dx, 2 * current.dy - lastCubicControl.dy)
+            : current;
+        final c2 = point(number(), number());
+        final end = point(number(), number());
+        path.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, end.dx, end.dy);
+        current = end;
+        lastCubicControl = c2;
+        lastQuadControl = null;
       case 'Q':
         final c1 = point(number(), number());
         final end = point(number(), number());
         path.quadraticBezierTo(c1.dx, c1.dy, end.dx, end.dy);
         current = end;
+        lastQuadControl = c1;
+        lastCubicControl = null;
+      case 'T':
+        final c1 = lastQuadControl != null
+            ? Offset(2 * current.dx - lastQuadControl.dx, 2 * current.dy - lastQuadControl.dy)
+            : current;
+        final end = point(number(), number());
+        path.quadraticBezierTo(c1.dx, c1.dy, end.dx, end.dy);
+        current = end;
+        lastQuadControl = c1;
+        lastCubicControl = null;
       case 'A':
         final rx = number();
         final ry = number();
         final rotation = number();
-        final largeArc = number() != 0;
-        final sweep = number() != 0;
+        final largeArc = flag();
+        final sweep = flag();
         final end = point(number(), number());
         path.arcToPoint(
           end,
@@ -421,9 +506,13 @@ Path parseSvgPath(String d) {
           clockwise: sweep,
         );
         current = end;
+        lastCubicControl = null;
+        lastQuadControl = null;
       case 'Z':
         path.close();
         current = start;
+        lastCubicControl = null;
+        lastQuadControl = null;
       default:
         throw FormatException('Comando SVG no admitido: $cmd', d);
     }
