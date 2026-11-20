@@ -103,114 +103,48 @@ class _HardwareDiagnosticDialogState extends State<HardwareDiagnosticDialog> {
     }
   }
 
-  Future<void> _initAndCheckPermissions() async {
-    setState(() => _isLoading = true);
-
-    final List<_DiagnosticRow> rows;
-
-    if (widget.sdkInt != null) {
-      final sdk = widget.sdkInt!;
-      if (sdk >= 31) {
-        rows = <_DiagnosticRow>[
-          const _DiagnosticRow(
-            title: 'Buscar celulares cercanos',
-            permission: Permission.bluetoothScan,
-          ),
-          const _DiagnosticRow(
-            title: 'Avisar a celulares cercanos',
-            permission: Permission.bluetoothAdvertise,
-          ),
-          const _DiagnosticRow(
-            title: 'Conectar con celulares cercanos',
-            permission: Permission.bluetoothConnect,
-          ),
-          if (widget.needsCamera)
-            const _DiagnosticRow(
-              title: 'Cámara (para leer el código de la clase)',
-              permission: Permission.camera,
-            ),
-        ];
-      } else {
-        rows = <_DiagnosticRow>[
-          const _DiagnosticRow(
-            title: 'Ubicación',
-            permission: Permission.locationWhenInUse,
-          ),
-          const _DiagnosticRow(
-            title: 'Ubicación del celular encendida',
-          ),
-          if (widget.needsCamera)
-            const _DiagnosticRow(
-              title: 'Cámara (para leer el código de la clase)',
-              permission: Permission.camera,
-            ),
-        ];
-      }
-    } else if (widget.isAndroid12OrHigherOverride != null) {
-      final isAndroid12 = widget.isAndroid12OrHigherOverride!;
-      rows = <_DiagnosticRow>[
-        const _DiagnosticRow(
+  /// Filas del diagnóstico según la versión de Android: los permisos de
+  /// Bluetooth cercano solo existen desde Android 12 (SDK 31); antes, el
+  /// escaneo depende del permiso y del servicio de ubicación.
+  List<_DiagnosticRow> _rowsFor(int sdk) {
+    return <_DiagnosticRow>[
+      if (sdk >= 31) ...const <_DiagnosticRow>[
+        _DiagnosticRow(
           title: 'Buscar celulares cercanos',
           permission: Permission.bluetoothScan,
         ),
-        const _DiagnosticRow(
+        _DiagnosticRow(
           title: 'Avisar a celulares cercanos',
           permission: Permission.bluetoothAdvertise,
         ),
-        const _DiagnosticRow(
+        _DiagnosticRow(
           title: 'Conectar con celulares cercanos',
           permission: Permission.bluetoothConnect,
         ),
-        if (!isAndroid12)
-          const _DiagnosticRow(
-            title: 'Ubicación (solo en Android 11 o anterior)',
-            permission: Permission.locationWhenInUse,
-          ),
-        if (widget.needsCamera)
-          const _DiagnosticRow(
-            title: 'Cámara (para leer el código de la clase)',
-            permission: Permission.camera,
-          ),
-      ];
-    } else {
-      final sdk = await androidSdkInt() ?? 31;
-      if (sdk >= 31) {
-        rows = <_DiagnosticRow>[
-          const _DiagnosticRow(
-            title: 'Buscar celulares cercanos',
-            permission: Permission.bluetoothScan,
-          ),
-          const _DiagnosticRow(
-            title: 'Avisar a celulares cercanos',
-            permission: Permission.bluetoothAdvertise,
-          ),
-          const _DiagnosticRow(
-            title: 'Conectar con celulares cercanos',
-            permission: Permission.bluetoothConnect,
-          ),
-          if (widget.needsCamera)
-            const _DiagnosticRow(
-              title: 'Cámara (para leer el código de la clase)',
-              permission: Permission.camera,
-            ),
-        ];
-      } else {
-        rows = <_DiagnosticRow>[
-          const _DiagnosticRow(
-            title: 'Ubicación',
-            permission: Permission.locationWhenInUse,
-          ),
-          const _DiagnosticRow(
-            title: 'Ubicación del celular encendida',
-          ),
-          if (widget.needsCamera)
-            const _DiagnosticRow(
-              title: 'Cámara (para leer el código de la clase)',
-              permission: Permission.camera,
-            ),
-        ];
-      }
-    }
+      ] else ...const <_DiagnosticRow>[
+        _DiagnosticRow(
+          title: 'Ubicación',
+          permission: Permission.locationWhenInUse,
+        ),
+        _DiagnosticRow(title: 'Ubicación del celular encendida'),
+      ],
+      if (widget.needsCamera)
+        const _DiagnosticRow(
+          title: 'Cámara (para leer el código de la clase)',
+          permission: Permission.camera,
+        ),
+    ];
+  }
+
+  Future<void> _initAndCheckPermissions() async {
+    setState(() => _isLoading = true);
+
+    final override = widget.isAndroid12OrHigherOverride;
+    final sdk = widget.sdkInt ??
+        (override == null ? null : (override ? 31 : 30)) ??
+        await androidSdkInt() ??
+        31;
+    final rows = _rowsFor(sdk);
 
     _rows = rows;
     await _evaluateAllStatuses();
