@@ -17,6 +17,7 @@ class _RecordingFakePeripheral implements FlutterBlePeripheral {
   bool isAdvertisingState = false;
   PeripheralBluetoothState startReturnState = PeripheralBluetoothState.ready;
   Object? errorToThrow;
+  AndroidAdvertiseSettings? lastAndroidSettings;
 
   @override
   Future<PeripheralBluetoothState> start({
@@ -27,6 +28,7 @@ class _RecordingFakePeripheral implements FlutterBlePeripheral {
     WindowsAdvertiseSettings? windowsSettings,
   }) async {
     calls.add('start');
+    lastAndroidSettings = androidSettings;
     if (errorToThrow != null) {
       throw errorToThrow!;
     }
@@ -380,6 +382,24 @@ void main() {
       // No debe haber un nuevo start
       expect(peripheral.calls, <String>['start', 'stop']);
       expect(service.isAdvertising, isFalse);
+    });
+  });
+
+  group('BleAttendanceService - ajustes de emisión en Android', () {
+    test('emite en baja latencia, potencia alta y no conectable', () async {
+      final peripheral = _RecordingFakePeripheral();
+      final service = BleAttendanceService(peripheral: peripheral);
+      addTearDown(service.dispose);
+
+      await service.startAdvertisingPacket(_packet(7));
+
+      final settings = peripheral.lastAndroidSettings?.advertiseSettings;
+      expect(settings, isNotNull,
+          reason: 'sin ajustes, Android usa bajo consumo (~1 anuncio/s)');
+      expect(settings!.advertiseMode, AdvertiseMode.advertiseModeLowLatency);
+      expect(settings.txPowerLevel, AdvertiseTxPower.advertiseTxPowerHigh);
+      expect(settings.connectable, isFalse);
+      expect(peripheral.lastAndroidSettings!.advertiseSetParameters, isNull);
     });
   });
 }
