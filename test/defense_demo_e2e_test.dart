@@ -521,6 +521,9 @@ void main() {
         'TotalInasistencias',
         'PorcentajeAsistencia',
         'EstadoAlerta',
+        'Origen',
+        'Celular vinculado desde',
+        'Estado',
       ]);
 
       // Verificación de celda de texto para Yoner
