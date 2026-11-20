@@ -62,12 +62,19 @@ class RosterImportService {
     'codigo estudiantil',
     'codigo estudiante',
     'codigo del estudiante',
+    'id',
+    'codigo alumno',
   };
   static const Set<String> _fullNameHeaders = <String>{
     'nombre completo',
     'nombres y apellidos',
     'apellidos y nombres',
+    'apellidos y nombre',
     'estudiante',
+    'nombre del estudiante',
+    'nombre estudiante',
+    'alumno',
+    'nombres completos',
   };
   static const Set<String> _lastNameHeaders = <String>{
     'apellidos',
@@ -354,6 +361,74 @@ class RosterImportService {
     }
 
     final start = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
+
+    int? resolvedCodeIndex;
+    int? resolvedFullNameIndex;
+    int? resolvedFirstNameIndex;
+    int? resolvedLastNameIndex;
+    var useSeparateNames = false;
+
+    if (header != null) {
+      List<_RawCell>? firstDataRow;
+      for (var i = start; i < rows.length; i++) {
+        final row = rows[i];
+        if (row.any((_RawCell cell) => cell.text.trim().isNotEmpty || cell.isFormula)) {
+          firstDataRow = row;
+          break;
+        }
+      }
+
+      // Código:
+      // 1. la columna de código reconocida;
+      // 2. si no, la primera columna cuya primera fila de datos sea un código válido
+      //    (EnrollmentPacketCodec.isValidStudentCode tras normalizar).
+      resolvedCodeIndex = header.codeIndex;
+      if (resolvedCodeIndex == null && firstDataRow != null) {
+        for (var c = 0; c < firstDataRow.length; c++) {
+          if (c == header.emailIndex) {
+            continue;
+          }
+          final candidateCode = normalizeStudentCode(firstDataRow[c].text);
+          if (EnrollmentPacketCodec.isValidStudentCode(candidateCode)) {
+            resolvedCodeIndex = c;
+            break;
+          }
+        }
+      }
+
+      // Nombre completo:
+      // 1. la columna de nombre completo reconocida;
+      // 2. si no, nombres + apellidos si están las dos;
+      // 3. si no, solo «nombres» o solo «apellidos» si hay una;
+      // 4. si no, la primera columna que no sea la del código ni la del correo
+      //    y que tenga texto no numérico en la primera fila de datos.
+      if (header.fullNameIndex != null) {
+        resolvedFullNameIndex = header.fullNameIndex;
+      } else if (header.firstNameIndex != null && header.lastNameIndex != null) {
+        useSeparateNames = true;
+        resolvedFirstNameIndex = header.firstNameIndex;
+        resolvedLastNameIndex = header.lastNameIndex;
+      } else if (header.firstNameIndex != null) {
+        resolvedFullNameIndex = header.firstNameIndex;
+      } else if (header.lastNameIndex != null) {
+        resolvedFullNameIndex = header.lastNameIndex;
+      } else if (firstDataRow != null) {
+        for (var c = 0; c < firstDataRow.length; c++) {
+          if (c == resolvedCodeIndex) {
+            continue;
+          }
+          if (c == header.emailIndex) {
+            continue;
+          }
+          final cellText = firstDataRow[c].text.trim();
+          if (cellText.isNotEmpty && !_isNumeric(cellText)) {
+            resolvedFullNameIndex = c;
+            break;
+          }
+        }
+      }
+    }
+
     final parsed = <_ParsedRow>[];
     for (var i = start; i < rows.length; i++) {
       final row = rows[i];
@@ -368,20 +443,22 @@ class RosterImportService {
       String? emailText;
 
       if (header != null) {
-        if (header.codeIndex != null) {
-          final codeCell = _rawCellAt(row, header.codeIndex!);
+        if (resolvedCodeIndex != null) {
+          final codeCell = _rawCellAt(row, resolvedCodeIndex);
           codeText = codeCell.text;
           isCodeFormula = codeCell.isFormula;
         }
-        if (header.fullNameIndex != null) {
-          final nameCell = _rawCellAt(row, header.fullNameIndex!);
-          nameText = nameCell.text;
-          isNameFormula = nameCell.isFormula;
-        } else if (header.firstNameIndex != null && header.lastNameIndex != null) {
-          final firstCell = _rawCellAt(row, header.firstNameIndex!);
-          final lastCell = _rawCellAt(row, header.lastNameIndex!);
+        if (useSeparateNames &&
+            resolvedFirstNameIndex != null &&
+            resolvedLastNameIndex != null) {
+          final firstCell = _rawCellAt(row, resolvedFirstNameIndex);
+          final lastCell = _rawCellAt(row, resolvedLastNameIndex);
           nameText = '${firstCell.text.trim()} ${lastCell.text.trim()}'.trim();
           isNameFormula = firstCell.isFormula || lastCell.isFormula;
+        } else if (resolvedFullNameIndex != null) {
+          final nameCell = _rawCellAt(row, resolvedFullNameIndex);
+          nameText = nameCell.text;
+          isNameFormula = nameCell.isFormula;
         }
         if (header.emailIndex != null) {
           emailText = _rawCellAt(row, header.emailIndex!).text;
@@ -450,7 +527,8 @@ class RosterImportService {
 
     final hasRecognizedColumns = codeIndex != null ||
         fullNameIndex != null ||
-        (firstNameIndex != null && lastNameIndex != null);
+        firstNameIndex != null ||
+        lastNameIndex != null;
 
     if (!hasRecognizedColumns) {
       return null;
@@ -685,7 +763,21 @@ class RosterImportService {
   }
 
   static String _normalizeHeaderToken(String value) {
-    return _stripAccents(value).trim().toLowerCase().replaceAll(':', '');
+    var token = _stripAccents(value)
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    token = token.replaceAll(RegExp(r'[\s:.°]+$'), '');
+    return token;
+  }
+
+  static bool _isNumeric(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return false;
+    }
+    final normalized = trimmed.replaceAll(',', '.');
+    return double.tryParse(normalized) != null;
   }
 
   static String _normalizeFullName(String value) {
@@ -780,7 +872,8 @@ class _HeaderInfo {
 
   bool get hasName =>
       fullNameIndex != null ||
-      (firstNameIndex != null && lastNameIndex != null);
+      firstNameIndex != null ||
+      lastNameIndex != null;
 }
 
 /// Fila cruda ya mapeada a las tres columnas del roster.
