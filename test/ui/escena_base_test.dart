@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:asistencia_uniguajira/data/services/first_run_store.dart';
 import 'package:asistencia_uniguajira/features/shared/how_it_works/how_it_works_content.dart';
@@ -52,6 +53,106 @@ void main() {
     test('rechaza texto que no es un trazo', () {
       expect(() => parseSvgPath('10 10'), throwsFormatException);
       expect(() => parseSvgPath('M0 0 X5'), throwsFormatException);
+    });
+  });
+
+  group('parseSvgPath (R2-B: S/T, banderas compactas, números y caché)', () {
+    test('comando S calcula el reflejo del segundo control de la C previa', () {
+      const dS = 'M0 0 C10 0 20 10 20 20 S30 40 40 40';
+      const dC = 'M0 0 C10 0 20 10 20 20 C20 30 30 40 40 40';
+      expect(() => parseSvgPath(dS), returnsNormally);
+      expect(svgPathLength(dS), closeTo(svgPathLength(dC), 0.001));
+
+      // S relativo
+      const dsRel = 'M0 0 c10 0 20 10 20 20 s10 20 20 20';
+      expect(() => parseSvgPath(dsRel), returnsNormally);
+
+      // S sin C previa usa el punto actual como primer control
+      const dSSolo = 'M10 10 S20 20 30 30';
+      const dCSolo = 'M10 10 C10 10 20 20 30 30';
+      expect(svgPathLength(dSSolo), closeTo(svgPathLength(dCSolo), 0.001));
+    });
+
+    test('comando T calcula el reflejo del control de la Q previa', () {
+      const dT = 'M0 0 Q10 0 10 10 T20 20';
+      const dQ = 'M0 0 Q10 0 10 10 Q10 20 20 20';
+      expect(() => parseSvgPath(dT), returnsNormally);
+      expect(svgPathLength(dT), closeTo(svgPathLength(dQ), 0.001));
+
+      // T relativo
+      const dtRel = 'M0 0 q10 0 10 10 t10 10';
+      expect(() => parseSvgPath(dtRel), returnsNormally);
+
+      // T sin Q previa usa el punto actual como control
+      const dTSolo = 'M10 10 T20 20';
+      const dQSolo = 'M10 10 Q10 10 20 20';
+      expect(svgPathLength(dTSolo), closeTo(svgPathLength(dQSolo), 0.001));
+    });
+
+    test('banderas de arco compactas 0/1 pegadas', () {
+      const dCompacto = 'M0 0 a16 16 0 0116 16';
+      const dSeparado = 'M0 0 a16 16 0 0 1 16 16';
+      expect(svgPathLength(dCompacto), closeTo(svgPathLength(dSeparado), 0.001));
+
+      // Banderas inválidas lanzan FormatException
+      expect(() => parseSvgPath('M0 0 a16 16 0 2 1 16 16'), throwsFormatException);
+    });
+
+    test('números pegados y exponentes', () {
+      // '1.5.5' se lee como 1.5 y .5; M0 0L1.5.5 traza línea a (1.5, 0.5).
+      // Si parte de (0.5, 0) con avance relativo 'M0.5 0l1.5.5', termina en (2, 0.5).
+      final p1 = parseSvgPath('M0 0L1.5.5');
+      final metric1 = p1.computeMetrics().first;
+      final end1 = metric1.getTangentForOffset(metric1.length)!.position;
+      expect(end1.dx, closeTo(1.5, 0.001));
+      expect(end1.dy, closeTo(0.5, 0.001));
+
+      final pRel = parseSvgPath('M0.5 0l1.5.5');
+      final metricRel = pRel.computeMetrics().first;
+      final endRel = metricRel.getTangentForOffset(metricRel.length)!.position;
+      expect(endRel.dx, closeTo(2.0, 0.001));
+      expect(endRel.dy, closeTo(0.5, 0.001));
+
+      // M10-5L20-5 es válido (10,-5 a 20,-5)
+      final p2 = parseSvgPath('M10-5L20-5');
+      final bounds2 = p2.getBounds();
+      expect(bounds2.left, closeTo(10, 0.001));
+      expect(bounds2.top, closeTo(-5, 0.001));
+      expect(bounds2.right, closeTo(20, 0.001));
+      expect(bounds2.bottom, closeTo(-5, 0.001));
+
+      // Exponentes
+      expect(() => parseSvgPath('M0 0 L1e-2 2E2'), returnsNormally);
+      expect(svgPathLength('M0 0 H1e2'), closeTo(100, 0.001));
+    });
+
+    test('caché de Path no vuelve a parsear y es defensiva ante mutaciones', () {
+      clearSvgPathCache();
+      expect(svgPathCacheSize, 0);
+
+      const d = 'M0 0 L10 10';
+      final p1 = parseSvgPath(d);
+      expect(svgPathCacheSize, 1);
+
+      final p2 = parseSvgPath(d);
+      expect(svgPathCacheSize, 1); // No vuelve a parsear ni añade otra entrada
+
+      // Modificar el Path devuelto no afecta a llamadas posteriores
+      p1.lineTo(100, 100);
+      final p3 = parseSvgPath(d);
+      final bounds3 = p3.getBounds();
+      expect(bounds3.right, closeTo(10, 0.001));
+      expect(bounds3.bottom, closeTo(10, 0.001));
+
+      // svgPathLength usa la misma caché
+      expect(svgPathLength(d), closeTo(math.sqrt(200), 0.001));
+      expect(svgPathCacheSize, 1);
+
+      // Desalojo por tope de 256 entradas
+      for (var i = 0; i < 300; i++) {
+        parseSvgPath('M0 0 L$i 0');
+      }
+      expect(svgPathCacheSize, lessThanOrEqualTo(256));
     });
   });
 
