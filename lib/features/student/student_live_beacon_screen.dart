@@ -276,7 +276,9 @@ class _StudentLiveBeaconScreenState extends State<StudentLiveBeaconScreen> {
     final isTeacherEcho = BlePacketCodec.verifyTeacherEchoBytes(
       packet16: packet16,
       expectedCourseId: widget.enrollment.courseId,
+      expectedSessionPin: _sessionPin!,
       sharedSecretHex: widget.enrollment.sharedSecret,
+      currentTimeTick: BlePacketCodec.computeTimeTick(DateTime.now()),
     ).isValid;
 
     if (isTeacherEcho && _lastTeacherRssi != rssi) {

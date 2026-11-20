@@ -79,12 +79,6 @@ abstract final class BlePacketCodec {
     return (digest[0] << 8) | digest[1];
   }
 
-  /// Primeros 16 bits (big-endian) del SHA-256 del identificador de sesión.
-  static int computeSessionShortId(String sessionId) {
-    final digest = sha256.convert(utf8.encode(sessionId)).bytes;
-    return (digest[0] << 8) | digest[1];
-  }
-
   /// Construye el anuncio de 16 bytes que emite el teléfono del estudiante.
   ///
   /// Layout: `[courseHash16:2][0x80|bitIndex:1][pin:1][timeTick:4][HMAC:8]`.
@@ -259,24 +253,44 @@ abstract final class BlePacketCodec {
 
   /// Construye el eco de 16 bytes que emite el docente con el Bitmap actual.
   ///
-  /// Layout: `[courseHash16:2][0x00:1][sessionShortId alto:1][bitmap:8][HMAC:4]`.
+  /// Layout: `[courseHash16:2][0x00:1][pin:1][bitmap:8][HMAC:4]`.
   static Uint8List buildTeacherEchoBytes({
     required String courseId,
-    required String sessionId,
+    required int sessionPin,
     required Uint8List bitmap8,
     required String sharedSecretHex,
+    required int timeTick,
   }) {
     _validateBitmap8(bitmap8);
+    if (sessionPin < 0 || sessionPin > 99) {
+      throw ArgumentError.value(
+        sessionPin,
+        'sessionPin',
+        'El PIN debe estar entre 0 y 99.',
+      );
+    }
+    if (timeTick < 0 || timeTick > 0xFFFFFFFF) {
+      throw ArgumentError.value(
+        timeTick,
+        'timeTick',
+        'El tick debe caber en un uint32 sin signo.',
+      );
+    }
+
     final packet = Uint8List(packetLength);
     final data = ByteData.sublistView(packet);
     data.setUint16(0, computeCourseHash16(courseId), Endian.big);
     packet[2] = teacherPacketFlag;
-    packet[3] = (computeSessionShortId(sessionId) >> 8) & 0xFF;
+    packet[3] = sessionPin & 0xFF;
     packet.setRange(4, 12, bitmap8);
+
+    final messageToSign = Uint8List(16);
+    messageToSign.setRange(0, 12, packet.sublist(0, 12));
+    ByteData.sublistView(messageToSign).setUint32(12, timeTick, Endian.big);
 
     final tag = _hmacSha256(
       sharedSecretHex,
-      packet.sublist(0, 12),
+      messageToSign,
     ).sublist(0, 4);
     packet.setRange(12, packetLength, tag);
     return packet;
@@ -286,7 +300,10 @@ abstract final class BlePacketCodec {
   static TeacherEchoVerificationResult verifyTeacherEchoBytes({
     required Uint8List packet16,
     required String expectedCourseId,
+    required int expectedSessionPin,
     required String sharedSecretHex,
+    required int currentTimeTick,
+    int clockSkewToleranceTicks = 1,
   }) {
     if (packet16.length != packetLength) {
       return const TeacherEchoVerificationResult(
@@ -306,6 +323,13 @@ abstract final class BlePacketCodec {
         failureReason: 'El paquete es de inscripción, no un eco de asistencia.',
       );
     }
+    if (clockSkewToleranceTicks < 0) {
+      throw ArgumentError.value(
+        clockSkewToleranceTicks,
+        'clockSkewToleranceTicks',
+        'La tolerancia no puede ser negativa.',
+      );
+    }
 
     final data = ByteData.sublistView(packet16);
     if (data.getUint16(0, Endian.big) !=
@@ -316,14 +340,38 @@ abstract final class BlePacketCodec {
       );
     }
 
-    final expectedTag = _hmacSha256(
-      sharedSecretHex,
-      packet16.sublist(0, 12),
-    ).sublist(0, 4);
-    if (!_constantTimeEquals(expectedTag, packet16.sublist(12, 16))) {
+    final sessionPin = packet16[3];
+    if (sessionPin != expectedSessionPin) {
       return const TeacherEchoVerificationResult(
         isValid: false,
-        failureReason: 'La firma HMAC del eco no es válida.',
+        failureReason: 'El eco es de otra sesión.',
+      );
+    }
+
+    var matched = false;
+    for (var tick = currentTimeTick - clockSkewToleranceTicks;
+        tick <= currentTimeTick + clockSkewToleranceTicks;
+        tick++) {
+      if (tick < 0) continue;
+      final messageToVerify = Uint8List(16);
+      messageToVerify.setRange(0, 12, packet16.sublist(0, 12));
+      ByteData.sublistView(messageToVerify).setUint32(12, tick, Endian.big);
+
+      final expectedTag = _hmacSha256(
+        sharedSecretHex,
+        messageToVerify,
+      ).sublist(0, 4);
+
+      if (_constantTimeEquals(expectedTag, packet16.sublist(12, 16))) {
+        matched = true;
+        break;
+      }
+    }
+
+    if (!matched) {
+      return const TeacherEchoVerificationResult(
+        isValid: false,
+        failureReason: 'La firma HMAC del eco no es válida o está vencida.',
       );
     }
 

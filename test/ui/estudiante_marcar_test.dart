@@ -418,9 +418,10 @@ void main() {
       // Simular eco válido del docente de ESTA clase con señal fuerte (-60 dBm >= -65)
       final teacherEcho = BlePacketCodec.buildTeacherEchoBytes(
         courseId: _sampleEnrollment.courseId,
-        sessionId: 'session-123',
+        sessionPin: 47,
         bitmap8: Uint8List(8),
         sharedSecretHex: _sampleEnrollment.sharedSecret,
+        timeTick: BlePacketCodec.computeTimeTick(DateTime.now()),
       );
       bleService.emitPacket(teacherEcho, -60);
       await tester.pump();

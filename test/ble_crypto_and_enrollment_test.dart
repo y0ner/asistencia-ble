@@ -398,7 +398,8 @@ void main() {
 
   group('4. Construcción y verificación criptográfica del paquete de Eco del Docente', () {
     const courseId = 'course-inf-2026';
-    const sessionId = 'session-2026-11-06-01';
+    const sessionPin = 42;
+    const timeTick = 50;
 
     test('estudiante recupera bitmap8 intacto y detecta su bitIndex encendido', () {
       // Docente marca presente a estudiantes 5, 14 y 63
@@ -409,9 +410,10 @@ void main() {
 
       final echoBytes = BlePacketCodec.buildTeacherEchoBytes(
         courseId: courseId,
-        sessionId: sessionId,
+        sessionPin: sessionPin,
         bitmap8: teacherBitmap,
         sharedSecretHex: _testCourseSecret,
+        timeTick: timeTick,
       );
 
       expect(echoBytes, hasLength(BlePacketCodec.packetLength));
@@ -421,7 +423,9 @@ void main() {
       final verifyResult = BlePacketCodec.verifyTeacherEchoBytes(
         packet16: echoBytes,
         expectedCourseId: courseId,
+        expectedSessionPin: sessionPin,
         sharedSecretHex: _testCourseSecret,
+        currentTimeTick: timeTick,
       );
 
       expect(verifyResult.isValid, isTrue);
@@ -442,9 +446,10 @@ void main() {
     test('rechazo automático de eco docente ante HMAC adulterado o curso erróneo', () {
       final validEcho = BlePacketCodec.buildTeacherEchoBytes(
         courseId: courseId,
-        sessionId: sessionId,
+        sessionPin: sessionPin,
         bitmap8: BlePacketCodec.createEmptyBitmap8(),
         sharedSecretHex: _testCourseSecret,
+        timeTick: timeTick,
       );
 
       // Adulterar 1 bit en la firma HMAC del docente (bytes 12..15)
@@ -454,7 +459,9 @@ void main() {
       final verifyTampered = BlePacketCodec.verifyTeacherEchoBytes(
         packet16: tamperedEcho,
         expectedCourseId: courseId,
+        expectedSessionPin: sessionPin,
         sharedSecretHex: _testCourseSecret,
+        currentTimeTick: timeTick,
       );
       expect(verifyTampered.isValid, isFalse);
       expect(verifyTampered.failureReason, contains('La firma HMAC del eco no es válida'));
@@ -463,7 +470,9 @@ void main() {
       final verifyWrongSecret = BlePacketCodec.verifyTeacherEchoBytes(
         packet16: validEcho,
         expectedCourseId: courseId,
+        expectedSessionPin: sessionPin,
         sharedSecretHex: _otherSecret,
+        currentTimeTick: timeTick,
       );
       expect(verifyWrongSecret.isValid, isFalse);
       expect(verifyWrongSecret.failureReason, contains('La firma HMAC del eco no es válida'));
@@ -472,7 +481,9 @@ void main() {
       final verifyWrongCourse = BlePacketCodec.verifyTeacherEchoBytes(
         packet16: validEcho,
         expectedCourseId: 'otro-curso-distinto',
+        expectedSessionPin: sessionPin,
         sharedSecretHex: _testCourseSecret,
+        currentTimeTick: timeTick,
       );
       expect(verifyWrongCourse.isValid, isFalse);
       expect(verifyWrongCourse.failureReason, contains('El eco pertenece a otro curso'));

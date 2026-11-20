@@ -443,7 +443,9 @@ void main() {
         final echo = BlePacketCodec.verifyTeacherEchoBytes(
           packet16: ble.advertisements.last,
           expectedCourseId: course.id,
+          expectedSessionPin: state.pin,
           sharedSecretHex: course.courseSecret,
+          currentTimeTick: BlePacketCodec.computeTimeTick(DateTime.now()),
         );
         expect(echo.isValid, isTrue);
         expect(BlePacketCodec.extractPresentBitIndices(echo.bitmap8!), <int>[0, 1, 63]);
@@ -733,7 +735,9 @@ void main() {
         final echo = BlePacketCodec.verifyTeacherEchoBytes(
           packet16: ble.advertisements.last,
           expectedCourseId: course.id,
+          expectedSessionPin: state.pin,
           sharedSecretHex: course.courseSecret,
+          currentTimeTick: BlePacketCodec.computeTimeTick(DateTime.now()),
         );
         expect(echo.isValid, isTrue);
         expect(BlePacketCodec.isStudentBitSet(echo.bitmap8!, 2), isTrue);
@@ -782,7 +786,9 @@ void main() {
         final echo = BlePacketCodec.verifyTeacherEchoBytes(
           packet16: ble.advertisements.last,
           expectedCourseId: course.id,
+          expectedSessionPin: state.pin,
           sharedSecretHex: course.courseSecret,
+          currentTimeTick: BlePacketCodec.computeTimeTick(DateTime.now()),
         );
         expect(echo.isValid, isTrue);
         expect(BlePacketCodec.isStudentBitSet(echo.bitmap8!, 1), isFalse);
@@ -820,9 +826,10 @@ void main() {
         );
         final teacherEcho = BlePacketCodec.buildTeacherEchoBytes(
           courseId: course.id,
-          sessionId: 'session-echo-demo-1',
+          sessionPin: 42,
           bitmap8: bitmapWithBit0,
           sharedSecretHex: course.courseSecret,
+          timeTick: BlePacketCodec.computeTimeTick(now),
         );
 
         final outcome = await controller.checkTeacherEchoForStudent(
@@ -871,9 +878,10 @@ void main() {
         );
         final teacherEcho = BlePacketCodec.buildTeacherEchoBytes(
           courseId: course.id,
-          sessionId: 'session-echo-demo-1',
+          sessionPin: 42,
           bitmap8: bitmapOnlyBit1,
           sharedSecretHex: course.courseSecret,
+          timeTick: BlePacketCodec.computeTimeTick(now),
         );
 
         final outcome = await controller.checkTeacherEchoForStudent(
@@ -907,9 +915,10 @@ void main() {
         );
         final validTeacherEcho = BlePacketCodec.buildTeacherEchoBytes(
           courseId: course.id,
-          sessionId: 'session-echo-demo-1',
+          sessionPin: 42,
           bitmap8: bitMap,
           sharedSecretHex: course.courseSecret,
+          timeTick: BlePacketCodec.computeTimeTick(now),
         );
 
         // 1. Eco adulterado en la firma
@@ -932,9 +941,10 @@ void main() {
         // 2. Eco de otro curso
         final foreignCourseEcho = BlePacketCodec.buildTeacherEchoBytes(
           courseId: 'otro-curso-xyz',
-          sessionId: 'session-echo-demo-1',
+          sessionPin: 42,
           bitmap8: bitMap,
           sharedSecretHex: course.courseSecret,
+          timeTick: BlePacketCodec.computeTimeTick(now),
         );
         final foreignOutcome = await controller.checkTeacherEchoForStudent(
           enrollment: enrollment,

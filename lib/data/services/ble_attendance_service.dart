@@ -337,15 +337,17 @@ class BleAttendanceService {
   /// Construye y anuncia el eco del docente con el Bitmap de la sesión.
   Future<void> startTeacherEcho({
     required String courseId,
-    required String sessionId,
+    required int sessionPin,
     required Uint8List bitmap8,
     required String sharedSecretHex,
+    int? timeTick,
   }) {
     final packet = BlePacketCodec.buildTeacherEchoBytes(
       courseId: courseId,
-      sessionId: sessionId,
+      sessionPin: sessionPin,
       bitmap8: bitmap8,
       sharedSecretHex: sharedSecretHex,
+      timeTick: timeTick ?? BlePacketCodec.computeTimeTick(DateTime.now()),
     );
     return startAdvertisingPacket(packet);
   }
