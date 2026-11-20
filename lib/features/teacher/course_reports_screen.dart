@@ -117,7 +117,7 @@ class CourseReportsScreen extends StatefulWidget {
           courseId: courseId,
           directoryPath: primaryDir,
         );
-      } catch (e) {
+      } on FileSystemException catch (e) {
         debugPrint(
           'Error al escribir en directorio principal de exportación ($primaryDir): $e. '
           'Usando directorio de respaldo ($fallbackDir).',
@@ -419,8 +419,8 @@ class _CourseReportsScreenState extends State<CourseReportsScreen> {
 
     final summary = _summary;
     final students = summary?.studentMetrics ?? <StudentAttendanceMetric>[];
-    // Los retirados se listan al final, pero no cuentan como matriculados.
-    final allCount = students.where((s) => s.isActive).length;
+    // El chip «Todos» muestra el número de filas que lista (incluye retirados).
+    final allCount = students.length;
     final alertCount = _countStudentsInAlert(students);
     final lossCount = _countStudentsInLoss(students);
     final avgAttendance = _calculateAverageAttendance(
