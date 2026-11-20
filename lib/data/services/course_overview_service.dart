@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/models/course_model.dart';
 import '../../core/models/session_model.dart';
 import '../local/app_database.dart';
@@ -154,7 +155,7 @@ class CourseOverviewService {
           presentCount = recordsList.where((r) {
             if (r is Map) {
               final status = (r['status'] ?? '').toString();
-              return status == 'PRESENT';
+              return status == AppConstants.attendanceStatusPresent;
             }
             return false;
           }).length;

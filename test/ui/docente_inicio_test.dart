@@ -473,8 +473,9 @@ void main() {
           await database.insertCourse(c2);
 
           final now = DateTime.now();
-          final earlierToday = now.subtract(const Duration(hours: 2)).toIso8601String();
-          final laterToday = now.subtract(const Duration(hours: 1)).toIso8601String();
+          // Horas fijas del mismo día: «ahora menos N» cae en ayer pasada la medianoche.
+          final earlierToday = DateTime(now.year, now.month, now.day, 0, 10).toIso8601String();
+          final laterToday = DateTime(now.year, now.month, now.day, 0, 40).toIso8601String();
 
           // Sesión abierta antigua para c1
           await database.insertSession(SessionModel(

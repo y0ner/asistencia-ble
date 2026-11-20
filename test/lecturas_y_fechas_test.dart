@@ -89,12 +89,11 @@ void main() {
         await db.insertStudent(s1);
 
         final now = DateTime.now();
-        final earlierToday = now
-            .subtract(const Duration(minutes: 30))
-            .toIso8601String();
-        final laterToday = now
-            .subtract(const Duration(minutes: 5))
-            .toIso8601String();
+        // Horas fijas del mismo día: «ahora menos N» cae en ayer pasada la medianoche.
+        final earlierToday =
+            DateTime(now.year, now.month, now.day, 0, 10).toIso8601String();
+        final laterToday =
+            DateTime(now.year, now.month, now.day, 0, 40).toIso8601String();
 
         // Sesión 1: abierta hoy, sin registros.
         await db.insertSession(SessionModel(

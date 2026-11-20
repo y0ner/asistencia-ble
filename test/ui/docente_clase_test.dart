@@ -216,11 +216,13 @@ void main() {
         closedAt: '2026-11-02T09:00:00.000-05:00',
       );
 
-      // Sesión 2: abierta (en vivo)
-      await database.insertSession(const SessionModel(
+      // Sesión 2: abierta hoy (en vivo). Una abierta de otro día ya no se
+      // muestra como en curso: se cierra con su acta al volver a tomar asistencia.
+      final now = DateTime.now();
+      await database.insertSession(SessionModel(
         id: 'ses-open',
         courseId: 'course-bd2',
-        startedAt: '2026-11-09T08:00:00.000-05:00',
+        startedAt: DateTime(now.year, now.month, now.day, 0, 10).toIso8601String(),
         roomPin: '42',
       ));
     }
