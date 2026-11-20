@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:asistencia_uniguajira/data/services/ble_attendance_service.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Uint8List _packet([int seed = 0]) {
@@ -221,5 +223,163 @@ void main() {
         );
       },
     );
+  });
+
+  group('BleAttendanceService - Criterios de Aceptación Brief R1-B', () {
+    test(
+      'el mismo paquete entregado 100 veces dentro de 2 s produce un evento; '
+      'pasado duplicateWindow produce otro',
+      () async {
+        var fakeNow = DateTime(2026, 11, 20, 10, 0, 0);
+        final service = BleAttendanceService(
+          duplicateWindow: const Duration(seconds: 2),
+          now: () => fakeNow,
+        );
+        addTearDown(service.dispose);
+
+        final events = <BlePacketEvent>[];
+        final sub = service.packetEvents.listen(events.add);
+        addTearDown(sub.cancel);
+
+        final packet = _packet(42);
+
+        // Entregado 100 veces dentro de la ventana de 2 segundos
+        for (var i = 0; i < 100; i++) {
+          service.debugHandleAdvertisedPacket(packet, -60);
+        }
+        await Future<void>.delayed(Duration.zero);
+        expect(events, hasLength(1));
+
+        // Avanzamos 1 segundo (aún dentro de la ventana de 2 segundos)
+        fakeNow = fakeNow.add(const Duration(seconds: 1));
+        service.debugHandleAdvertisedPacket(packet, -60);
+        await Future<void>.delayed(Duration.zero);
+        expect(events, hasLength(1));
+
+        // Avanzamos superando duplicateWindow desde la emisión anterior
+        fakeNow = fakeNow.add(const Duration(seconds: 2));
+        service.debugHandleAdvertisedPacket(packet, -60);
+        await Future<void>.delayed(Duration.zero);
+        expect(events, hasLength(2));
+      },
+    );
+
+    test('dos paquetes distintos entregados juntos producen dos eventos', () async {
+      final service = BleAttendanceService();
+      addTearDown(service.dispose);
+
+      final events = <BlePacketEvent>[];
+      final sub = service.packetEvents.listen(events.add);
+      addTearDown(sub.cancel);
+
+      final packet1 = _packet(1);
+      final packet2 = _packet(2);
+
+      service.debugHandleAdvertisedPacket(packet1, -60);
+      service.debugHandleAdvertisedPacket(packet2, -60);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(events, hasLength(2));
+      expect(events[0].packet16, packet1);
+      expect(events[1].packet16, packet2);
+    });
+
+    test(
+      'anunciando un paquete: el adaptador pasa a off y luego a on '
+      '-> el periférico falso recibe un nuevo start con el mismo paquete',
+      () async {
+        final adapterController =
+            StreamController<BluetoothAdapterState>.broadcast();
+        addTearDown(adapterController.close);
+
+        final peripheral = _RecordingFakePeripheral();
+        final service = BleAttendanceService(
+          peripheral: peripheral,
+          adapterStates: adapterController.stream,
+        );
+        addTearDown(service.dispose);
+
+        final packet = _packet(77);
+        await service.startAdvertisingPacket(packet);
+
+        expect(peripheral.calls, <String>['start']);
+        expect(service.isAdvertising, isTrue);
+
+        // Se apaga el Bluetooth
+        adapterController.add(BluetoothAdapterState.off);
+        await Future<void>.delayed(Duration.zero);
+        expect(service.isAdvertising, isFalse);
+
+        // Se vuelve a encender el Bluetooth
+        adapterController.add(BluetoothAdapterState.on);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(peripheral.calls, <String>['start', 'start']);
+        expect(service.isAdvertising, isTrue);
+      },
+    );
+
+    test('escaneando: off -> on -> startScanOverride se llama otra vez', () async {
+      final adapterController =
+          StreamController<BluetoothAdapterState>.broadcast();
+      addTearDown(adapterController.close);
+
+      var scanCallCount = 0;
+      final service = BleAttendanceService(
+        adapterStates: adapterController.stream,
+        startScanOverride: () async {
+          scanCallCount++;
+        },
+      );
+      addTearDown(service.dispose);
+
+      await service.startScan();
+      expect(scanCallCount, 1);
+      expect(service.isScanning, isTrue);
+
+      // off -> on
+      adapterController.add(BluetoothAdapterState.off);
+      await Future<void>.delayed(Duration.zero);
+
+      adapterController.add(BluetoothAdapterState.on);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(scanCallCount, 2);
+      expect(service.isScanning, isTrue);
+    });
+
+    test('después de stopAdvertising(), un off -> on no vuelve a anunciar', () async {
+      final adapterController =
+          StreamController<BluetoothAdapterState>.broadcast();
+      addTearDown(adapterController.close);
+
+      final peripheral = _RecordingFakePeripheral();
+      final service = BleAttendanceService(
+        peripheral: peripheral,
+        adapterStates: adapterController.stream,
+      );
+      addTearDown(service.dispose);
+
+      final packet = _packet(99);
+      await service.startAdvertisingPacket(packet);
+      expect(peripheral.calls, <String>['start']);
+
+      await service.stopAdvertising();
+      expect(peripheral.calls, <String>['start', 'stop']);
+      expect(service.isAdvertising, isFalse);
+
+      // off -> on
+      adapterController.add(BluetoothAdapterState.off);
+      await Future<void>.delayed(Duration.zero);
+
+      adapterController.add(BluetoothAdapterState.on);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      // No debe haber un nuevo start
+      expect(peripheral.calls, <String>['start', 'stop']);
+      expect(service.isAdvertising, isFalse);
+    });
   });
 }

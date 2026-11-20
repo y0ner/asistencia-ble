@@ -65,7 +65,17 @@ class BleAttendanceService {
   BleAttendanceService({
     FlutterBlePeripheral? peripheral,
     this.minRssiDbm = AppConstants.minRssiDbm,
-  }) : _peripheral = peripheral ?? FlutterBlePeripheral();
+    this.duplicateWindow = const Duration(seconds: 2),
+    DateTime Function()? now,
+    Stream<BluetoothAdapterState>? adapterStates,
+    this.startScanOverride,
+  })  : _peripheral = peripheral ?? FlutterBlePeripheral(),
+        _now = now ?? DateTime.now,
+        _adapterStatesStream = adapterStates {
+    if (adapterStates != null) {
+      _listenAdapterState();
+    }
+  }
 
   final FlutterBlePeripheral _peripheral;
   final StreamController<BlePacketEvent> _packetController =
@@ -76,10 +86,24 @@ class BleAttendanceService {
   /// Umbral mínimo de RSSI aceptado por el radar.
   final int minRssiDbm;
 
+  /// Ventana de tiempo durante la cual se descartan paquetes idénticos.
+  final Duration duplicateWindow;
+
+  final DateTime Function() _now;
+  final Stream<BluetoothAdapterState>? _adapterStatesStream;
+
+  /// Invocación alternativa para pruebas sin tocar canales nativos de escaneo.
+  final Future<void> Function()? startScanOverride;
+
+  final Map<String, DateTime> _lastEmittedByPacket = <String, DateTime>{};
+
   StreamSubscription<List<ScanResult>>? _scanSubscription;
   StreamSubscription<BluetoothAdapterState>? _adapterSubscription;
   bool _isAdvertising = false;
   Uint8List? _lastAdvertisedPacket;
+  Uint8List? _desiredAdvertisedPacket;
+  Duration? _lastScanTimeout;
+  bool _wasAdapterOff = false;
   Future<void> _adQueue = Future<void>.value();
   bool _disposed = false;
 
@@ -115,6 +139,8 @@ class BleAttendanceService {
       return;
     }
 
+    _lastScanTimeout = timeout;
+
     _scanSubscription = FlutterBluePlus.onScanResults.listen(
       (List<ScanResult> results) {
         for (final ScanResult result in results) {
@@ -137,11 +163,17 @@ class BleAttendanceService {
 
     _listenAdapterState();
 
+    final scanOverride = startScanOverride;
     try {
-      await FlutterBluePlus.startScan(
-        timeout: timeout,
-        continuousUpdates: true,
-      );
+      if (scanOverride != null) {
+        await scanOverride();
+      } else {
+        await FlutterBluePlus.startScan(
+          timeout: timeout,
+          continuousUpdates: true,
+          oneByOne: true,
+        );
+      }
     } catch (error) {
       await _scanSubscription?.cancel();
       _scanSubscription = null;
@@ -185,8 +217,10 @@ class BleAttendanceService {
   Future<void> startAdvertisingPacket(Uint8List packet16) async {
     _ensureNotDisposed();
     _validatePacket(packet16);
+    _listenAdapterState();
 
     final targetPacket = Uint8List.fromList(packet16);
+    _desiredAdvertisedPacket = targetPacket;
     final completer = Completer<void>();
 
     _adQueue = _adQueue.then((_) async {
@@ -302,6 +336,7 @@ class BleAttendanceService {
 
   /// Detiene el anuncio BLE activo esperando a que la cola complete.
   Future<void> stopAdvertising() async {
+    _desiredAdvertisedPacket = null;
     final completer = Completer<void>();
     _adQueue = _adQueue.then((_) async {
       try {
@@ -329,14 +364,25 @@ class BleAttendanceService {
     return completer.future;
   }
 
+  /// Procesa un paquete anunciado por la misma ruta que un resultado de escaneo,
+  /// aplicando validación de tamaño, umbral RSSI y filtro de duplicados.
+  @visibleForTesting
+  void debugHandleAdvertisedPacket(Uint8List packet16, int rssi) {
+    _emitIfNearby(packet16, rssi);
+  }
+
   /// Inyecta un paquete simulado para pruebas deterministas sin hardware BLE.
   ///
   /// Devuelve `true` solo si el paquete mide 16 bytes y supera el umbral RSSI.
-  bool injectSimulatedPacket({required Uint8List packet16, required int rssi}) {
+  bool injectSimulatedPacket({
+    required Uint8List packet16,
+    required int rssi,
+    bool filterDuplicates = false,
+  }) {
     if (_disposed || packet16.length != BlePacketCodec.packetLength) {
       return false;
     }
-    return _emitIfNearby(packet16, rssi);
+    return _emitIfNearby(packet16, rssi, filterDuplicates: filterDuplicates);
   }
 
   /// Inyecta una incidencia simulada para pruebas deterministas.
@@ -352,6 +398,7 @@ class BleAttendanceService {
       return;
     }
     _disposed = true;
+    _desiredAdvertisedPacket = null;
     await stopScan();
     await _adapterSubscription?.cancel();
     _adapterSubscription = null;
@@ -364,20 +411,12 @@ class BleAttendanceService {
   }
 
   void _listenAdapterState() {
-    if (_adapterSubscription != null) return;
+    if (_adapterSubscription != null || _disposed) return;
     try {
-      _adapterSubscription = FlutterBluePlus.adapterState.listen(
+      final stream = _adapterStatesStream ?? FlutterBluePlus.adapterState;
+      _adapterSubscription = stream.listen(
         (BluetoothAdapterState state) {
-          if (state != BluetoothAdapterState.on) {
-            _reportIssue(
-              BleRuntimeIssue(
-                type: BleRuntimeIssueType.adapterOff,
-                message:
-                    'El adaptador Bluetooth no está encendido ($state).',
-                cause: state,
-              ),
-            );
-          }
+          _handleAdapterStateChange(state);
         },
         onError: (Object error) {
           _reportIssue(
@@ -394,6 +433,71 @@ class BleAttendanceService {
       debugPrint(
         'No se pudo monitorear el estado del adaptador Bluetooth: $error. '
         'Se continuará sin monitoreo reactivo del adaptador.',
+      );
+    }
+  }
+
+  void _handleAdapterStateChange(BluetoothAdapterState state) {
+    if (state != BluetoothAdapterState.on) {
+      _wasAdapterOff = true;
+      _isAdvertising = false;
+      _lastAdvertisedPacket = null;
+      _reportIssue(
+        BleRuntimeIssue(
+          type: BleRuntimeIssueType.adapterOff,
+          message:
+              'El adaptador Bluetooth no está encendido ($state).',
+          cause: state,
+        ),
+      );
+    } else {
+      if (_wasAdapterOff) {
+        _wasAdapterOff = false;
+        _recoverAfterAdapterOn();
+      }
+    }
+  }
+
+  void _recoverAfterAdapterOn() {
+    if (_disposed) return;
+
+    if (_scanSubscription != null) {
+      unawaited(_restartScanAfterAdapterOn());
+    }
+
+    if (_desiredAdvertisedPacket != null) {
+      final packetToReannounce = _desiredAdvertisedPacket!;
+      _adQueue = _adQueue.then((_) async {
+        if (_disposed || _desiredAdvertisedPacket == null) return;
+        try {
+          await _executeAdvertisingPacket(packetToReannounce);
+        } catch (error) {
+          // _executeAdvertisingPacket ya lo reportó por `issues`.
+          debugPrint('No se pudo reanunciar tras encender el Bluetooth: $error');
+        }
+      });
+    }
+  }
+
+  Future<void> _restartScanAfterAdapterOn() async {
+    final scanOverride = startScanOverride;
+    try {
+      if (scanOverride != null) {
+        await scanOverride();
+      } else {
+        await FlutterBluePlus.startScan(
+          timeout: _lastScanTimeout,
+          continuousUpdates: true,
+          oneByOne: true,
+        );
+      }
+    } catch (error) {
+      _reportIssue(
+        BleRuntimeIssue(
+          type: BleRuntimeIssueType.scan,
+          message: 'Fallo al reiniciar el escaneo BLE: $error',
+          cause: error,
+        ),
       );
     }
   }
@@ -418,16 +522,51 @@ class BleAttendanceService {
     }
   }
 
-  bool _emitIfNearby(Uint8List packet16, int rssi) {
+  bool _emitIfNearby(
+    Uint8List packet16,
+    int rssi, {
+    bool filterDuplicates = true,
+  }) {
     if (_disposed ||
         packet16.length != BlePacketCodec.packetLength ||
         rssi < minRssiDbm) {
       return false;
     }
+
+    if (filterDuplicates) {
+      final key = BlePacketCodec.bytes16ToUuid(packet16);
+      final currentTime = _now();
+      final lastEmitted = _lastEmittedByPacket[key];
+
+      if (lastEmitted != null &&
+          currentTime.difference(lastEmitted) < duplicateWindow) {
+        return false;
+      }
+
+      _lastEmittedByPacket[key] = currentTime;
+      if (_lastEmittedByPacket.length > 256) {
+        _pruneOldPackets(currentTime);
+      }
+    }
+
     _packetController.add(
       BlePacketEvent(packet16: Uint8List.fromList(packet16), rssi: rssi),
     );
     return true;
+  }
+
+  void _pruneOldPackets(DateTime currentTime) {
+    _lastEmittedByPacket.removeWhere(
+      (_, DateTime time) => currentTime.difference(time) >= duplicateWindow,
+    );
+    if (_lastEmittedByPacket.length > 256) {
+      final sortedEntries = _lastEmittedByPacket.entries.toList()
+        ..sort((a, b) => a.value.compareTo(b.value));
+      final excess = sortedEntries.length - 256;
+      for (var i = 0; i < excess; i++) {
+        _lastEmittedByPacket.remove(sortedEntries[i].key);
+      }
+    }
   }
 
   void _ensureNotDisposed() {

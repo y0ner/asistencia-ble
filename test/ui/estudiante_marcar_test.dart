@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:asistencia_uniguajira/core/crypto/ble_packet_codec.dart';
 import 'package:asistencia_uniguajira/core/models/student_enrollment_model.dart';
 import 'package:asistencia_uniguajira/data/local/app_database.dart';
 import 'package:asistencia_uniguajira/data/services/attendance_session_controller.dart';
@@ -375,6 +376,57 @@ void main() {
       expect(find.text('Ya puedes guardar el celular.'), findsOneWidget);
       expect(find.text('Listo'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Paso 2: señal del profesor ignora beacons de estudiantes y solo actualiza con eco del docente',
+    (tester) async {
+      sessionController.nextOutcome = const StudentConfirmationOutcome(
+        isConfirmed: false,
+        failureReason: 'El estudiante aún no está marcado en el bitmap.',
+      );
+
+      await pumpScreen(tester, theme: UiTheme.light());
+
+      // Ingresar PIN 47 y avanzar a Paso 2
+      await tester.tap(find.text('4'));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.text('7'));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      await tester.tap(find.text('Continuar'));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Acerca tu celular al del profesor'), findsOneWidget);
+      // Señal inicial es débil
+      expect(find.text('Señal débil: acércate más'), findsOneWidget);
+
+      // Simular paquete de otro estudiante con señal fuerte (-50 dBm)
+      final studentBeacon = BlePacketCodec.buildStudentBeaconBytes(
+        courseId: _sampleEnrollment.courseId,
+        bitIndex: 12,
+        sessionPin: 47,
+        secretHex: '11' * 32,
+        timeTick: 100,
+      );
+      bleService.emitPacket(studentBeacon, -50);
+      await tester.pump();
+      // NO debe actualizarse a señal fuerte porque no es eco del docente
+      expect(find.text('Señal débil: acércate más'), findsOneWidget);
+
+      // Simular eco válido del docente de ESTA clase con señal fuerte (-60 dBm >= -65)
+      final teacherEcho = BlePacketCodec.buildTeacherEchoBytes(
+        courseId: _sampleEnrollment.courseId,
+        sessionId: 'session-123',
+        bitmap8: Uint8List(8),
+        sharedSecretHex: _sampleEnrollment.sharedSecret,
+      );
+      bleService.emitPacket(teacherEcho, -60);
+      await tester.pump();
+
+      // Debe actualizar la señal a fuerte
+      expect(find.text('Señal fuerte: ya casi'), findsOneWidget);
     },
   );
 }
