@@ -20,6 +20,7 @@ typedef BluetoothAdapterStateProvider =
     Stream<BluetoothAdapterState> Function();
 typedef BluetoothTurnOnAction = Future<void> Function();
 typedef OpenAppSettingsAction = Future<bool> Function();
+typedef LocationServiceStatusChecker = Future<ServiceStatus> Function();
 
 /// Diagnóstico de permisos y disponibilidad del adaptador BLE.
 class BlePermissionResult {
@@ -28,6 +29,8 @@ class BlePermissionResult {
     required this.missingPermissions,
     required this.permanentlyDeniedPermissions,
     required this.isBluetoothTurnedOn,
+    this.isLocationServiceEnabled = true,
+    this.sdkVersion,
     this.failureMessage,
   });
 
@@ -43,6 +46,12 @@ class BlePermissionResult {
   /// Indica si el adaptador Bluetooth está encendido.
   final bool isBluetoothTurnedOn;
 
+  /// Indica si el servicio de ubicación del celular está encendido (en Android 11 o anterior).
+  final bool isLocationServiceEnabled;
+
+  /// Versión del SDK de Android evaluada.
+  final int? sdkVersion;
+
   /// Mensaje explicativo en español de qué falta para que el hardware esté listo.
   final String? failureMessage;
 
@@ -51,7 +60,14 @@ class BlePermissionResult {
 
   /// Indica si el único problema pendiente es encender el adaptador Bluetooth.
   bool get onlyBluetoothOff =>
-      missingPermissions.isEmpty && !isBluetoothTurnedOn;
+      missingPermissions.isEmpty && !isBluetoothTurnedOn && isLocationServiceEnabled;
+
+  /// Indica si el único problema pendiente es encender la ubicación del sistema.
+  bool get onlyLocationServiceOff =>
+      missingPermissions.isEmpty && isBluetoothTurnedOn && !isLocationServiceEnabled;
+
+  /// Indica si se evaluó en Android 11 o anterior.
+  bool get isAndroid11OrLower => (sdkVersion ?? 31) <= 30;
 }
 
 /// Servicio encargado de solicitar y validar permisos de Bluetooth y estado del adaptador.
@@ -68,6 +84,7 @@ class BlePermissionService {
     BluetoothAdapterStateProvider? bluetoothAdapterStateProvider,
     BluetoothTurnOnAction? bluetoothTurnOnAction,
     OpenAppSettingsAction? openAppSettingsAction,
+    LocationServiceStatusChecker? locationServiceStatusChecker,
   }) : _androidSdkVersionProvider =
            androidSdkVersionProvider ?? _defaultAndroidSdkVersion,
        _permissionStatusChecker =
@@ -78,7 +95,9 @@ class BlePermissionService {
        _bluetoothTurnOnAction =
            bluetoothTurnOnAction ?? _defaultTurnOnBluetooth,
        _openAppSettingsAction =
-           openAppSettingsAction ?? _defaultOpenAppSettings;
+           openAppSettingsAction ?? _defaultOpenAppSettings,
+       _locationServiceStatusChecker =
+           locationServiceStatusChecker ?? _defaultLocationServiceStatus;
 
   final AndroidSdkVersionProvider _androidSdkVersionProvider;
   final PermissionStatusChecker _permissionStatusChecker;
@@ -86,6 +105,7 @@ class BlePermissionService {
   final BluetoothAdapterStateProvider _bluetoothAdapterStateProvider;
   final BluetoothTurnOnAction _bluetoothTurnOnAction;
   final OpenAppSettingsAction _openAppSettingsAction;
+  final LocationServiceStatusChecker _locationServiceStatusChecker;
 
   /// Evalúa los permisos requeridos según la versión de Android y el estado del Bluetooth.
   ///
@@ -150,7 +170,20 @@ class BlePermissionService {
       isBtOn = false;
     }
 
-    final isReady = missing.isEmpty && isBtOn;
+    var isLocServiceOn = true;
+    if (sdkVersion <= 30) {
+      try {
+        final locStatus = await _locationServiceStatusChecker();
+        isLocServiceOn = locStatus == ServiceStatus.enabled;
+      } catch (error) {
+        debugPrint(
+          'Error al verificar el servicio de ubicación: $error; se asume apagado.',
+        );
+        isLocServiceOn = false;
+      }
+    }
+
+    final isReady = missing.isEmpty && isBtOn && isLocServiceOn;
     String? failureMessage;
 
     if (permanentlyDenied.isNotEmpty) {
@@ -160,6 +193,10 @@ class BlePermissionService {
     } else if (missing.isNotEmpty) {
       failureMessage =
           'Faltan permisos de Bluetooth necesarios para operar en el aula.';
+    } else if (sdkVersion <= 30 && !isLocServiceOn) {
+      failureMessage =
+          'Activa la ubicación del celular. En Android 11 o anterior el Bluetooth '
+          'la necesita para encontrar otros celulares; la app no guarda tu ubicación.';
     } else if (!isBtOn) {
       failureMessage =
           'El Bluetooth está apagado. Enciéndelo para operar en el aula.';
@@ -170,6 +207,8 @@ class BlePermissionService {
       missingPermissions: missing,
       permanentlyDeniedPermissions: permanentlyDenied,
       isBluetoothTurnedOn: isBtOn,
+      isLocationServiceEnabled: isLocServiceOn,
+      sdkVersion: sdkVersion,
       failureMessage: failureMessage,
     );
   }
@@ -211,4 +250,13 @@ class BlePermissionService {
 
   static Future<bool> _defaultOpenAppSettings() =>
       ph.openAppSettings();
+
+  static Future<ServiceStatus> _defaultLocationServiceStatus() async {
+    try {
+      return await Permission.location.serviceStatus;
+    } catch (error) {
+      debugPrint('No se pudo verificar el servicio de ubicación: $error');
+      return ServiceStatus.disabled;
+    }
+  }
 }
