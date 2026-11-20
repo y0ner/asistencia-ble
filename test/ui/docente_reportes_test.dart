@@ -48,6 +48,11 @@ class _FakeAppDatabase extends AppDatabase {
   }
 
   @override
+  Future<List<StudentModel>> getAllStudentsByCourse(String courseId) async {
+    return students.values.where((s) => s.courseId == courseId).toList();
+  }
+
+  @override
   Future<void> upsertSession(SessionModel session) async {
     sessions[session.id] = session;
   }
@@ -122,7 +127,7 @@ StudentModel _buildTestStudent({
     email: '$code@uniguajira.edu.co',
     bitIndex: bitIndex,
     personalSecret: _testPersonalSecret,
-    enrolledAt: '2026-11-12T08:05:00.000Z',
+    enrolledAt: '2026-11-12T07:55:00.000Z',
   );
 }
 

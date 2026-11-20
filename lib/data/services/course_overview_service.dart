@@ -85,17 +85,20 @@ class CourseOverviewService {
 
   /// `true` si el estudiante está en riesgo de perder por fallas.
   static bool isAtRisk(StudentAttendanceMetric metric) =>
+      metric.isActive &&
       metric.alertStatus == AttendanceAlertStatus.failureByAbsences;
 
   /// `true` si el estudiante está en alerta (aún no en riesgo).
   static bool isInAlert(StudentAttendanceMetric metric) =>
+      metric.isActive &&
       metric.alertStatus == AttendanceAlertStatus.attendanceAlert;
 
   /// Promedio de asistencia redondeado a una cifra decimal; nulo si no hay datos.
   static double? averageAttendance(List<StudentAttendanceMetric> students, int closedSessions) {
-    if (students.isEmpty || closedSessions == 0) return null;
-    final sum = students.fold<double>(0, (acc, s) => acc + s.attendancePercentage);
-    return (sum / students.length * 10).roundToDouble() / 10;
+    final active = students.where((s) => s.isActive).toList(growable: false);
+    if (active.isEmpty || closedSessions == 0) return null;
+    final sum = active.fold<double>(0, (acc, s) => acc + s.attendancePercentage);
+    return (sum / active.length * 10).roundToDouble() / 10;
   }
 
   /// Resumen de todas las clases, en el orden de la base de datos.
@@ -112,7 +115,10 @@ class CourseOverviewService {
   Future<CourseOverview> load(String courseId) async {
     await _database.consolidateOpenSession(courseId);
     final summary = await _reportService.buildCourseSummary(courseId);
-    final studentCount = summary.students.length;
+    final activeStudents =
+        summary.students.where((s) => s.isActive).toList(growable: false);
+    final studentCount = activeStudents.length;
+    final activeStudentIds = activeStudents.map((s) => s.studentId).toSet();
 
     final sessions = List<SessionModel>.of(await _database.getSessionsByCourse(courseId))
       ..sort((a, b) => _startedAt(b).compareTo(_startedAt(a)));
@@ -120,9 +126,14 @@ class CourseOverviewService {
     final rows = <SessionAttendanceRow>[];
     for (final session in sessions) {
       final records = await _database.getAttendanceRecordsBySession(session.id);
+      final presentCount = records
+          .where((r) => activeStudentIds.contains(r.studentId))
+          .map((r) => r.studentId)
+          .toSet()
+          .length;
       rows.add(SessionAttendanceRow(
         session: session,
-        presentCount: records.map((r) => r.studentId).toSet().length,
+        presentCount: presentCount,
         totalStudents: studentCount,
       ));
     }
@@ -141,8 +152,8 @@ class CourseOverviewService {
       boundCount: (await _database.getStudentsByCourse(courseId)).where((s) => s.hasDevice).length,
       closedSessionCount: summary.totalClosedSessions,
       attendancePercent: averageAttendance(summary.students, summary.totalClosedSessions),
-      atRiskCount: summary.students.where(isAtRisk).length,
-      inAlertCount: summary.students.where(isInAlert).length,
+      atRiskCount: activeStudents.where(isAtRisk).length,
+      inAlertCount: activeStudents.where(isInAlert).length,
       openSession: open,
       recentSessions: rows.take(recentLimit).toList(growable: false),
     );
