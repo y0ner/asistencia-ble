@@ -472,7 +472,8 @@ class BleAttendanceService {
         try {
           await _executeAdvertisingPacket(packetToReannounce);
         } catch (error) {
-          // El fallo ya fue gestionado y reportado por _executeAdvertisingPacket.
+          // _executeAdvertisingPacket ya lo reportó por `issues`.
+          debugPrint('No se pudo reanunciar tras encender el Bluetooth: $error');
         }
       });
     }
