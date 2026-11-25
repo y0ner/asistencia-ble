@@ -41,12 +41,12 @@ android {
         create("docente") {
             dimension = "rol"
             applicationIdSuffix = ".docente"
-            resValue("string", "app_name", "Asistencia Docente")
+            resValue("string", "app_name", "AsistenciaBLE Docente")
         }
         create("estudiante") {
             dimension = "rol"
             applicationIdSuffix = ".estudiante"
-            resValue("string", "app_name", "Asistencia Estudiante")
+            resValue("string", "app_name", "AsistenciaBLE Estudiante")
         }
     }
 
