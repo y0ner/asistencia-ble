@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="640" font-family="Figtree, sans-serif" role="img" aria-label="Un estudiante escanea con su celular el código QR que muestra el profesor">
+  <rect width="320" height="220" fill="#E3F1F3"/>
+  <rect x="34" y="52" width="70" height="116" rx="14" fill="#1F7A87"></rect>
+  <rect x="46" y="76" width="46" height="46" rx="8" fill="#FFFFFF"></rect>
+  <rect x="52" y="82" width="12" height="12" rx="3" fill="#10262B"></rect>
+  <rect x="74" y="82" width="12" height="12" rx="3" fill="#10262B"></rect>
+  <rect x="52" y="104" width="12" height="12" rx="3" fill="#10262B"></rect>
+  <rect x="74" y="104" width="6" height="6" rx="2" fill="#10262B"></rect>
+  <rect x="52" y="138" width="34" height="7" rx="3.500" fill="#FFFFFF" opacity="0.55"></rect>
+  <path d="M114 110 h48" stroke="#E8A44C" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 8" fill="none"></path>
+  <rect x="176" y="18" width="112" height="184" rx="22" fill="#FFFFFF" stroke="#10262B" stroke-width="3"></rect>
+  <rect x="190" y="40" width="84" height="96" rx="12" fill="#E3F1F3"></rect>
+  <rect x="208" y="64" width="48" height="48" rx="8" fill="#FFFFFF"></rect>
+  <rect x="214" y="70" width="12" height="12" rx="3" fill="#10262B"></rect>
+  <rect x="238" y="70" width="12" height="12" rx="3" fill="#10262B"></rect>
+  <rect x="214" y="94" width="12" height="12" rx="3" fill="#10262B"></rect>
+  <rect x="238" y="94" width="6" height="6" rx="2" fill="#10262B"></rect>
+  <path d="M200 68 v-12 h12 M264 68 v-12 h-12 M200 108 v12 h12 M264 108 v12 h-12" stroke="#E8A44C" stroke-width="3.500" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  <path d="M204 88 h56" stroke="#E8A44C" stroke-width="3" stroke-linecap="round" fill="none"></path>
+  <rect x="198" y="152" width="68" height="8" rx="4" fill="#10262B"></rect>
+  <rect x="210" y="168" width="44" height="7" rx="3.500" fill="#51666B" opacity="0.6"></rect>
+</svg>
