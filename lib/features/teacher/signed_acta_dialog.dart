@@ -24,6 +24,19 @@ class SignedActaDialog extends StatelessWidget {
   /// Clave secreta opcional para verificar la firma de la sesión.
   final String? courseSecretHex;
 
+  /// Fecha y hora de inicio de la sesión en la hora del celular, igual que en
+  /// «Últimas sesiones» ("Viernes 20 de noviembre · 10:42 p. m.").
+  ///
+  /// Las horas del acta se guardan en UTC: sin `toLocal()` una clase de la
+  /// noche aparecía con la fecha del día siguiente.
+  static String sessionDateLabel(SignedSessionActa acta) {
+    final started = DateTime.tryParse(acta.startedAtIso) ??
+        DateTime.tryParse(acta.closedAtIso) ??
+        DateTime.now();
+    final local = started.toLocal();
+    return '${UiFormat.longDate(local)} · ${UiFormat.time(local)}';
+  }
+
   /// Muestra el modal con el acta firmada.
   static Future<void> show(
     BuildContext context, {
@@ -91,11 +104,7 @@ class SignedActaDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = UiColors.of(context);
-    final closedDate = DateTime.tryParse(acta.closedAtIso) ??
-        DateTime.tryParse(acta.startedAtIso) ??
-        DateTime.now();
-    final formattedDate =
-        '${UiFormat.longDate(closedDate)} · ${UiFormat.time(closedDate)}';
+    final formattedDate = sessionDateLabel(acta);
 
     final isSignatureValid =
         courseSecretHex != null && courseSecretHex!.isNotEmpty

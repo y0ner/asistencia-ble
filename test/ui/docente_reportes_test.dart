@@ -473,6 +473,39 @@ void main() {
   });
 
   group('Docente Reportes UI · Sesión firmada (SignedActaDialog)', () {
+    test('la fecha del acta es el inicio de la sesión en hora local, como en «Últimas sesiones»', () {
+      // Clase de la noche en Colombia: 22:42 del viernes 20 = 03:42 UTC del sábado 21.
+      const startedAtIso = '2026-11-21T03:42:00.000Z';
+      const closedAtIso = '2026-11-21T05:42:00.000Z';
+      final base = _buildTestActa(courseId: 'course-fecha', courseName: 'Redes');
+      final acta = SignedSessionActa(
+        sessionId: base.sessionId,
+        courseId: base.courseId,
+        courseCode: base.courseCode,
+        courseName: base.courseName,
+        sessionPin: base.sessionPin,
+        startedAtIso: startedAtIso,
+        closedAtIso: closedAtIso,
+        totalEnrolled: base.totalEnrolled,
+        presentBleCount: base.presentBleCount,
+        presentManualCount: base.presentManualCount,
+        absentCount: base.absentCount,
+        bitmapHex: base.bitmapHex,
+        records: base.records,
+        actaHmacSignature: base.actaHmacSignature,
+      );
+
+      final startedLocal = DateTime.parse(startedAtIso).toLocal();
+      final label = SignedActaDialog.sessionDateLabel(acta);
+
+      // Misma fecha que la fila de «Últimas sesiones» (course_detail_screen.dart).
+      expect(label, startsWith(UiFormat.longDate(startedLocal)));
+      expect(label, '${UiFormat.longDate(startedLocal)} · ${UiFormat.time(startedLocal)}');
+      if (DateTime(2026, 11, 20).timeZoneOffset == const Duration(hours: -5)) {
+        expect(label, 'Viernes 20 de noviembre · 10:42 p. m.');
+      }
+    });
+
     testWidgets(
       'muestra métricas, lista de estudiantes y detalles de la firma en claro (360x640, escala 1.3)',
       (tester) async {
