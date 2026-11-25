@@ -299,3 +299,9 @@ AsistenciaBLE fue construida mediante un flujo de ingeniería de software multi-
 ## Licencia
 
 Este proyecto está licenciado bajo la **Licencia Apache 2.0** — consulta el archivo [LICENSE](LICENSE) para más información.
+
+---
+
+<div align="center">
+  <i>Desarrollado y mantenido con estándares de calidad técnica por <a href="https://github.com/y0ner">y0ner</a></i>
+</div>
