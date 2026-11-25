@@ -144,28 +144,26 @@ void main() {
     // -------------------------------------------------------------------------
     // Escenario 2: Preservación de ceros a la izquierda y asignación de bits
     // -------------------------------------------------------------------------
-    test('2. Preservación de ceros a la izquierda y asignación de bits de los autores: comprueba que el Bit 00 tiene studentCode == "0182120016" (ISAZA VIDES YONER DE JESUS) y el Bit 01 tiene studentCode == "0182110072" (GARRIDO MEDINA ALVARO LUIS)', () async {
+    test('2. Preservación de ceros a la izquierda y asignación de bits de los autores: comprueba que el Bit 00 tiene studentCode == "${DemoSeedService.primaryStudentCode}" y el Bit 01 tiene studentCode == "${DemoSeedService.secondaryStudentCode}"', () async {
       final students = await database.getStudentsByCourse(course.id);
       expect(students.length, 12);
 
-      // Bit 00: Autor Principal Yoner Isaza
+      // Bit 00: Autor Principal Mateo Herrera
       final author0 = students.firstWhere((StudentModel s) => s.bitIndex == 0);
-      expect(author0.studentCode, '0182120016');
       expect(author0.studentCode, DemoSeedService.primaryStudentCode);
-      expect(author0.studentCode.startsWith('0'), isTrue);
+      expect(author0.studentCode.startsWith('2026'), isTrue);
       expect(author0.studentCode.length, 10);
-      expect(author0.fullName, 'ISAZA VIDES YONER DE JESUS');
-      expect(author0.email, 'yisaza@uniguajira.edu.co');
+      expect(author0.fullName, DemoSeedService.officialRoster[0]['name']);
+      expect(author0.email, DemoSeedService.officialRoster[0]['email']);
       expect(author0.personalSecret, hasLength(64));
 
-      // Bit 01: Coautor Álvaro Garrido
+      // Bit 01: Coautor Sofía Rodríguez
       final author1 = students.firstWhere((StudentModel s) => s.bitIndex == 1);
-      expect(author1.studentCode, '0182110072');
       expect(author1.studentCode, DemoSeedService.secondaryStudentCode);
-      expect(author1.studentCode.startsWith('0'), isTrue);
+      expect(author1.studentCode.startsWith('2026'), isTrue);
       expect(author1.studentCode.length, 10);
-      expect(author1.fullName, 'GARRIDO MEDINA ALVARO LUIS');
-      expect(author1.email, 'agarrido@uniguajira.edu.co');
+      expect(author1.fullName, DemoSeedService.officialRoster[1]['name']);
+      expect(author1.email, DemoSeedService.officialRoster[1]['email']);
       expect(author1.personalSecret, hasLength(64));
 
       // Verificación de unicidad e integridad para toda la nómina de 12
@@ -628,7 +626,8 @@ void main() {
           _extractCellString(row[0]): _extractCellString(row[1]),
       };
 
-      expect(metaMap['Institucion'], 'Universidad de La Guajira');
+      expect(metaMap['Institucion'], 'Institución de Educación Superior');
+      expect(metaMap['Sistema'], 'AsistenciaBLE (BLE + Mapa de Bits 8B)');
       expect(metaMap['CodigoCurso'], 'ING-SIS-1002');
       expect(metaMap['NombreCurso'], 'PROYECTOS DE INGENIERIA II');
       expect(metaMap['Grupo'], 'A1');
@@ -647,7 +646,7 @@ void main() {
     // -------------------------------------------------------------------------
     // Escenario 7: Sincronización institucional hacia Google Sheets
     // -------------------------------------------------------------------------
-    test('7. Sincronización institucional con CloudSyncService usando "mromero@uniguajira.edu.co": verifica que el payload JSON de Google Sheets es válido e incluye las 4 hojas y la firma del reporte', () async {
+    test('7. Sincronización institucional con CloudSyncService usando "${DemoSeedService.demoTeacherEmail}": verifica que el payload JSON de Google Sheets es válido e incluye las 4 hojas y la firma del reporte', () async {
       final excelService = ExcelReportService(
         database: database,
         teacherEmail: DemoSeedService.demoTeacherEmail,
@@ -664,15 +663,15 @@ void main() {
         isTrue,
       );
       expect(
-        cloudSyncService.isValidInstitutionalEmail('mromero@uniguajira.edu.co'),
+        cloudSyncService.isValidInstitutionalEmail('docente@institucion.edu.co'),
         isTrue,
       );
       expect(
-        cloudSyncService.isValidInstitutionalEmail('mromero@gmail.com'),
+        cloudSyncService.isValidInstitutionalEmail('sin-arroba'),
         isFalse,
       );
       expect(
-        cloudSyncService.isValidInstitutionalEmail('invalido@hotmail.com'),
+        cloudSyncService.isValidInstitutionalEmail('invalido@sin-punto'),
         isFalse,
       );
 
@@ -781,7 +780,7 @@ void main() {
         courseId: initialCourse.id,
         studentCode: '0182199999',
         fullName: 'ESTUDIANTE INTRUSO DE PRUEBA',
-        email: 'intruso@uniguajira.edu.co',
+        email: 'intruso@institucion.edu.co',
         bitIndex: 12,
         personalSecret:
             '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',

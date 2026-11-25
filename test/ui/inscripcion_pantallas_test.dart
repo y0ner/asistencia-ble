@@ -250,11 +250,11 @@ void main() {
       expect(find.text('Escribe el nombre completo.'), findsOneWidget); // no se aprueba sin nombre
 
       await tester.enterText(find.widgetWithText(TextField, 'Nombre completo'), 'María Epieyú');
-      await tester.enterText(find.widgetWithText(TextField, 'Correo (opcional)'), 'mepieyu@uniguajira.edu.co');
+      await tester.enterText(find.widgetWithText(TextField, 'Correo (opcional)'), 'mepieyu@institucion.edu.co');
       await tester.tap(find.widgetWithText(UiButton, 'Agregar y aceptar'));
       await _settle(tester);
 
-      expect(host.calls, contains('approve:77:María Epieyú:mepieyu@uniguajira.edu.co'));
+      expect(host.calls, contains('approve:77:María Epieyú:mepieyu@institucion.edu.co'));
       expect(find.text('María Epieyú ya está en la clase.'), findsOneWidget);
       expect(find.text('Por aprobar (1)'), findsNothing);
     });

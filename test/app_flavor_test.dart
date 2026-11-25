@@ -42,7 +42,7 @@ void main() {
 
         expect(find.byType(CoursesDashboardScreen), findsOneWidget);
         expect(find.byType(StudentCoursesScreen), findsNothing);
-        expect(find.text('Asistencia'), findsOneWidget);
+        expect(find.text('AsistenciaBLE'), findsOneWidget);
         expect(find.byIcon(Icons.help_outline_rounded), findsOneWidget);
       },
     );
@@ -60,7 +60,7 @@ void main() {
 
         expect(find.byType(StudentCoursesScreen), findsOneWidget);
         expect(find.byType(CoursesDashboardScreen), findsNothing);
-        expect(find.text('Asistencia'), findsOneWidget);
+        expect(find.text('AsistenciaBLE'), findsOneWidget);
         expect(find.byIcon(Icons.help_outline_rounded), findsOneWidget);
       },
     );

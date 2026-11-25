@@ -128,7 +128,7 @@ StudentModel _testStudent(String id, String code, String name, int bitIndex) {
     courseId: 'course-test-1',
     studentCode: code,
     fullName: name,
-    email: '$code@uniguajira.edu.co',
+    email: '$code@institucion.edu.co',
     bitIndex: bitIndex,
     personalSecret: _personalSecret,
     enrolledAt: '2026-11-11T08:01:00.000Z',

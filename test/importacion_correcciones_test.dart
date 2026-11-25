@@ -419,8 +419,8 @@ void main() {
       await database.insertCourse(course);
 
       const csv = 'ID;Nombre;Correo\n'
-          '0182120016;Maria Lopez;maria@uniguajira.edu.co\n'
-          '0182120017;Carlos Gomez;carlos@uniguajira.edu.co\n';
+          '0182120016;Maria Lopez;maria@institucion.edu.co\n'
+          '0182120017;Carlos Gomez;carlos@institucion.edu.co\n';
 
       final result = await service.importFromCsvString(course.id, csv);
 
@@ -428,10 +428,10 @@ void main() {
       expect(result.invalidRowsSkipped, 0);
       expect(result.insertedStudents[0].studentCode, '0182120016');
       expect(result.insertedStudents[0].fullName, 'MARIA LOPEZ');
-      expect(result.insertedStudents[0].email, 'maria@uniguajira.edu.co');
+      expect(result.insertedStudents[0].email, 'maria@institucion.edu.co');
       expect(result.insertedStudents[1].studentCode, '0182120017');
       expect(result.insertedStudents[1].fullName, 'CARLOS GOMEZ');
-      expect(result.insertedStudents[1].email, 'carlos@uniguajira.edu.co');
+      expect(result.insertedStudents[1].email, 'carlos@institucion.edu.co');
     });
 
     test('Importa 2 estudiantes con encabezado Codigo;Alumno', () async {
