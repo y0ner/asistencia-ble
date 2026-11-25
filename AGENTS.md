@@ -1,4 +1,4 @@
-# Manual operativo para agentes de IA — Asistencia Uniguajira
+# Manual operativo para agentes de IA — AsistenciaBLE
 
 Rige cómo trabajan los agentes de IA en este repositorio. Si algo de este
 archivo choca con una instrucción de un brief, gana este archivo.

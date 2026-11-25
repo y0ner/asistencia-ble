@@ -1,4 +1,4 @@
-# Sistema de diseño · Asistencia Uniguajira (versión B)
+# Sistema de diseño · AsistenciaBLE (versión B)
 
 Diseño aprobado por Yoner el 11 de noviembre de 2026. Reemplaza por completo el
 diseño anterior (`lib/theme`, azul rey y dorado), que **no** correspondía a la
