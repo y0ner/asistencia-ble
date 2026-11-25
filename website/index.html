@@ -265,6 +265,7 @@ p {
 }
 
 .nav-links a {
+  white-space: nowrap;
   transition: color 0.15s ease;
 }
 
@@ -1138,10 +1139,16 @@ footer .wrap {
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1100px) {
   .nav-links {
     display: none;
   }
+  .nav-actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 720px) {
   .nav .wrap {
     justify-content: space-between;
   }
@@ -1175,6 +1182,13 @@ footer .wrap {
   .btn {
     width: 100%;
   }
+  .nav .btn {
+    display: none;
+  }
+  .logo {
+    font-size: 17px;
+    gap: 8px;
+  }
 }
 </style>
 </head>
@@ -1193,7 +1207,6 @@ footer .wrap {
       <a href="#capturas" data-i18n="nav.shots">Capturas</a>
       <a href="#privacidad" data-i18n="nav.privacy">Privacidad</a>
       <a href="#proyecto" data-i18n="nav.academic">Proyecto</a>
-      <a href="#descargar" data-i18n="nav.download">Descargar</a>
     </nav>
     <div class="nav-actions">
       <div class="lang" role="group" aria-label="Idioma">
@@ -1232,7 +1245,7 @@ footer .wrap {
         </div>
         <div class="hero-meta">
           <span>Android 7.0+</span>
-          <span>~{{APK_SIZE_MB}} MB</span>
+          <span>~35 MB</span>
           <span data-i18n="hero.meta_offline">Sin internet</span>
           <span>Apache-2.0</span>
         </div>
@@ -1242,7 +1255,7 @@ footer .wrap {
           <img src="img/s1.webp" width="540" height="1200" alt="Inicio del docente">
         </div>
         <div class="hero-phone ph-right">
-          <img src="img/s4.webp" width="540" height="1200" alt="Confirmación ¡Presente!">
+          <img src="img/s4.webp" width="540" height="1200" alt="Inicio del estudiante">
         </div>
       </div>
     </div>
@@ -1467,20 +1480,20 @@ footer .wrap {
           <figcaption data-i18n="cap.2">2. Sesión en vivo del docente</figcaption>
         </figure>
         <figure>
-          <img src="img/s3.webp" width="540" height="1200" loading="lazy" alt="Estudiante marcando">
-          <figcaption data-i18n="cap.3">3. Estudiante marcando</figcaption>
+          <img src="img/s3.webp" width="540" height="1200" loading="lazy" alt="Estudiante: acerca el celular">
+          <figcaption data-i18n="cap.3">3. Estudiante: acerca el celular</figcaption>
         </figure>
         <figure>
-          <img src="img/s4.webp" width="540" height="1200" loading="lazy" alt="Confirmación ¡Presente!">
-          <figcaption data-i18n="cap.4">4. Confirmación ¡Presente!</figcaption>
+          <img src="img/s4.webp" width="540" height="1200" loading="lazy" alt="Inicio del estudiante">
+          <figcaption data-i18n="cap.4">4. Inicio del estudiante</figcaption>
         </figure>
         <figure>
           <img src="img/s5.webp" width="540" height="1200" loading="lazy" alt="Inscripción por QR">
           <figcaption data-i18n="cap.5">5. Inscripción por QR</figcaption>
         </figure>
         <figure>
-          <img src="img/s6.webp" width="540" height="1200" loading="lazy" alt="Cierre y reporte Excel">
-          <figcaption data-i18n="cap.6">6. Cierre y reporte Excel</figcaption>
+          <img src="img/s6.webp" width="540" height="1200" loading="lazy" alt="Sesión firmada">
+          <figcaption data-i18n="cap.6">6. Sesión firmada</figcaption>
         </figure>
         <figure>
           <img src="img/s7.webp" width="540" height="1200" loading="lazy" alt="Centro de ayuda">
@@ -1626,7 +1639,7 @@ footer .wrap {
           <dl>
             <dt data-i18n="sp.ver">Versión</dt><dd>1.0.0</dd>
             <dt data-i18n="sp.date">Publicada</dt><dd data-i18n="sp.dateval">25 nov 2026</dd>
-            <dt data-i18n="sp.size">Tamaño</dt><dd>~{{APK_SIZE_MB}} MB · arm64</dd>
+            <dt data-i18n="sp.size">Tamaño</dt><dd>~35 MB · arm64</dd>
             <dt data-i18n="sp.req">Requiere</dt><dd>Android 7.0+ (BLE Peripheral)</dd>
             <dt data-i18n="sp.lic">Licencia</dt><dd>Apache License 2.0</dd>
           </dl>
@@ -1662,7 +1675,6 @@ const EN = {
   "nav.shots": "Screenshots",
   "nav.privacy": "Privacy",
   "nav.academic": "Academic project",
-  "nav.download": "Download",
   "nav.cta": "Download",
   "hero.eyebrow": "Bluetooth proximity attendance · v1.0.0",
   "hero.title": "Take attendance in seconds, offline and serverless",
@@ -1735,10 +1747,10 @@ const EN = {
   "gal.lead": "Designed for one-handed operation, clean visual contrast, and a full dark mode.",
   "cap.1": "1. Teacher Home",
   "cap.2": "2. Teacher Live Session",
-  "cap.3": "3. Student Checking In",
-  "cap.4": "4. Present Confirmation",
+  "cap.3": "3. Student: bring phone close",
+  "cap.4": "4. Student home",
   "cap.5": "5. QR Enrollment",
-  "cap.6": "6. Session Close & Report",
+  "cap.6": "6. Signed session",
   "cap.7": "7. Help Center",
   "cap.8": "8. Teacher Dark Mode",
   "prv.eyebrow": "Privacy & Data Sovereignty",
