@@ -299,3 +299,9 @@ We welcome contributions from the community! Please review our [Contributing Gui
 ## License
 
 This project is licensed under the **Apache License 2.0** — see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+  <i>Developed and maintained with high technical quality standards by <a href="https://github.com/y0ner">y0ner</a></i>
+</div>
