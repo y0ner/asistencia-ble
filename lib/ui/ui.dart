@@ -1,4 +1,4 @@
-/// Sistema de diseño de Asistencia Uniguajira (versión B).
+/// Sistema de diseño de AsistenciaBLE (versión B).
 ///
 /// Las pantallas importan solo este archivo:
 /// `import '../../ui/ui.dart';`

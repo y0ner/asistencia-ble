@@ -14,9 +14,9 @@ class UiTonePair {
   final Color foreground;
 }
 
-/// Colores del sistema de diseño de Asistencia Uniguajira.
+/// Colores del sistema de diseño de AsistenciaBLE.
 ///
-/// Salen del escudo de la Universidad de La Guajira: turquesa (acción y
+/// Inspirados en la paleta institucional: turquesa (acción y
 /// presente), ocre (marcado a mano o atención) y coral (falta o riesgo).
 /// Las pantallas leen estos colores con `UiColors.of(context)`; ningún widget
 /// de `lib/features` debe escribir un `Color(0x…)`.

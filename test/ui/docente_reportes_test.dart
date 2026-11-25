@@ -124,7 +124,7 @@ StudentModel _buildTestStudent({
     courseId: courseId,
     studentCode: code,
     fullName: name,
-    email: '$code@uniguajira.edu.co',
+    email: '$code@institucion.edu.co',
     bitIndex: bitIndex,
     personalSecret: _testPersonalSecret,
     enrolledAt: '2026-11-12T07:55:00.000Z',

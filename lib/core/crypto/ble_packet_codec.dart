@@ -45,7 +45,7 @@ class TeacherEchoVerificationResult {
   final String? failureReason;
 }
 
-/// Códec del protocolo BLE de Asistencia Uniguajira.
+/// Códec del protocolo BLE de AsistenciaBLE.
 ///
 /// Todos los paquetes ocupan exactamente 16 bytes para poder viajar dentro de
 /// un Service UUID de 128 bits sin superar el límite de 31 bytes del

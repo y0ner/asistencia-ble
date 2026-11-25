@@ -76,7 +76,7 @@ class StudentEnrollmentModel {
     }
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException(
-        'El QR de Asistencia Uniguajira debe contener un objeto JSON.',
+        'El QR de AsistenciaBLE debe contener un objeto JSON.',
       );
     }
 
@@ -211,7 +211,7 @@ class StudentEnrollmentModel {
       }
     }
     throw FormatException(
-      'El QR de Asistencia Uniguajira no contiene "${keys.first}" o está vacío.',
+      'El QR de AsistenciaBLE no contiene "${keys.first}" o está vacío.',
     );
   }
 
@@ -232,7 +232,7 @@ class StudentEnrollmentModel {
       }
     }
     throw FormatException(
-      'El QR de Asistencia Uniguajira no contiene "${keys.first}" como entero.',
+      'El QR de AsistenciaBLE no contiene "${keys.first}" como entero.',
     );
   }
 

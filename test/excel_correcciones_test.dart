@@ -66,7 +66,7 @@ StudentModel _buildStudent({
     courseId: courseId,
     studentCode: studentCode,
     fullName: fullName,
-    email: '$studentCode@uniguajira.edu.co',
+    email: '$studentCode@institucion.edu.co',
     bitIndex: bitIndex,
     personalSecret: _testCourseSecret,
     enrolledAt: enrolledAt,
@@ -93,7 +93,7 @@ void main() {
       );
       excelService = ExcelReportService(
         database: database,
-        teacherEmail: 'docente@uniguajira.edu.co',
+        teacherEmail: 'docente@institucion.edu.co',
       );
       overviewService = CourseOverviewService(
         database: database,
@@ -547,9 +547,9 @@ void main() {
         expect(name1, isNot(equals(name3)));
         expect(name2, isNot(equals(name3)));
 
-        expect(name1, 'Asistencia_Uniguajira_SIST-401_01_2026-1_c-uuid.xlsx');
-        expect(name2, 'Asistencia_Uniguajira_SIST-401_01_2026-2_c-uuid.xlsx');
-        expect(name3, 'Asistencia_Uniguajira_SIST-401_01_2026-1_c3diff.xlsx');
+        expect(name1, 'AsistenciaBLE_SIST-401_01_2026-1_c-uuid.xlsx');
+        expect(name2, 'AsistenciaBLE_SIST-401_01_2026-2_c-uuid.xlsx');
+        expect(name3, 'AsistenciaBLE_SIST-401_01_2026-1_c3diff.xlsx');
         // Distinto prefijo de 6 caracteres del id
         final c4 = _buildCourse(
           id: 'abcde123',
@@ -558,7 +558,7 @@ void main() {
           semester: '2026-1',
         );
         final name4 = ExcelReportService.exportFileNameFor(c4);
-        expect(name4, 'Asistencia_Uniguajira_SIST-401_01_2026-1_abcde1.xlsx');
+        expect(name4, 'AsistenciaBLE_SIST-401_01_2026-1_abcde1.xlsx');
         expect(name4, isNot(equals(name1)));
       },
     );

@@ -176,13 +176,13 @@ void main() {
     expect(pending.studentCode, '0182120099');
     expect(await teacherDb.getStudentsByCourse(_course.id), isEmpty); // nunca entra solo
 
-    final added = await host.approve(pending.requestId, fullName: '  María   Epieyú ', email: 'MEpieyu@uniguajira.edu.co');
+    final added = await host.approve(pending.requestId, fullName: '  María   Epieyú ', email: 'MEpieyu@institucion.edu.co');
     final updates = await future;
 
     expect(updates.map((u) => u.phase), contains(EnrollmentClientPhase.pending));
     expect(updates.last.phase, EnrollmentClientPhase.accepted);
     expect(added.fullName, 'María Epieyú');
-    expect(added.email, 'mepieyu@uniguajira.edu.co');
+    expect(added.email, 'mepieyu@institucion.edu.co');
     expect(added.origin, AppConstants.studentOriginAddedInClass);
     expect(added.hasDevice, isTrue);
     expect(updates.last.enrollment!.bitIndex, added.bitIndex);

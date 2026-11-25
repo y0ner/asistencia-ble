@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:excel/excel.dart';
 import 'package:path/path.dart' as p;
 
+import '../../core/config/institution_config.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/models/attendance_record_model.dart';
 import '../../core/models/course_model.dart';
@@ -275,23 +276,31 @@ class CourseAttendanceSummary {
   }
 }
 
-/// Genera el libro oficial de asistencia de la Universidad de La Guajira.
+/// Genera el libro oficial de asistencia de AsistenciaBLE.
 ///
 /// El reporte se construye desde SQLite y contiene exactamente cuatro hojas:
 /// `Resumen`, `Detalle`, `Sesiones` y `Metadatos`.
 class ExcelReportService {
-  ExcelReportService({AppDatabase? database, String teacherEmail = ''})
-    : _database = database ?? AppDatabase.instance,
-      _teacherEmail = teacherEmail.trim();
+  ExcelReportService({
+    AppDatabase? database,
+    String teacherEmail = '',
+    InstitutionProfile? institution,
+  }) : _database = database ?? AppDatabase.instance,
+       _teacherEmail = teacherEmail.trim(),
+       _institution = institution ?? InstitutionConfig.current;
 
   final AppDatabase _database;
   final String _teacherEmail;
+  final InstitutionProfile _institution;
 
   /// Base de datos utilizada por el generador.
   AppDatabase get database => _database;
 
   /// Correo docente incluido en la hoja de metadatos.
   String get teacherEmail => _teacherEmail;
+
+  /// Perfil institucional utilizado en el reporte.
+  InstitutionProfile get institution => _institution;
 
   /// Construye y codifica el libro `.xlsx` oficial de un curso.
   Future<Uint8List> generateCourseAttendanceWorkbook(String courseId) async {
@@ -637,10 +646,10 @@ class ExcelReportService {
 
     final metadataRows = <List<Object?>>[
       <Object?>['Clave', 'Valor'],
-      <Object?>['Institucion', 'Universidad de La Guajira'],
+      <Object?>['Institucion', _institution.institutionName],
       <Object?>[
         'Sistema',
-        'Asistencia Multimodal Uniguajira (BLE + Mapa de Bits 8B)',
+        'AsistenciaBLE (BLE + Mapa de Bits 8B)',
       ],
       <Object?>['CursoID', course.id],
       <Object?>['CodigoCurso', course.code],
@@ -744,7 +753,7 @@ class ExcelReportService {
     final semester = _sanitizeFileSegment(course.semester);
     final idRaw = course.id.length >= 6 ? course.id.substring(0, 6) : course.id;
     final id6 = _sanitizeFileSegment(idRaw);
-    return 'Asistencia_Uniguajira_${courseCode}_${groupCode}_${semester}_$id6.xlsx';
+    return 'AsistenciaBLE_${courseCode}_${groupCode}_${semester}_$id6.xlsx';
   }
 
   static String _formatLocalSessionDate(String? raw) {

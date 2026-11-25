@@ -53,10 +53,10 @@ void main() {
       final course = _course();
       await database.insertCourse(course);
       const csv = 'codigo,nombre,correo\r\n'
-          '0182120016,  José   Ángel  Pérez ,jose@uniguajira.edu.co\r\n'
+          '0182120016,  José   Ángel  Pérez ,jose@institucion.edu.co\r\n'
           '0182110072,María Camila Ipuana,\r\n'
-          '0182120016,Otra Persona,otra@uniguajira.edu.co\r\n'
-          '0182120016,José Ángel Pérez,duplicado@uniguajira.edu.co\r\n'
+          '0182120016,Otra Persona,otra@institucion.edu.co\r\n'
+          '0182120016,José Ángel Pérez,duplicado@institucion.edu.co\r\n'
           ',"SIN CODIGO",\r\n';
 
       final result = await service.importFromCsvString(course.id, csv);
@@ -80,7 +80,7 @@ void main() {
       expect(result.insertedStudents[0].bitIndex, 0);
       expect(result.insertedStudents[1].studentCode, '0182110072');
       expect(result.insertedStudents[1].bitIndex, 1);
-      expect(result.insertedStudents.first.email, 'jose@uniguajira.edu.co');
+      expect(result.insertedStudents.first.email, 'jose@institucion.edu.co');
       expect(result.insertedStudents.last.email, isNull);
       expect(
         RegExp(r'^[0-9a-f]{64}$')
@@ -108,8 +108,8 @@ void main() {
       final course = _course();
       await database.insertCourse(course);
       const csv = 'codigo estudiante;nombre completo;email\n'
-          '0182120016;Álvaro Luis Garrido Medina;alvaro@uniguajira.edu.co\n'
-          '0182110072;María Camila Ipuana;maria@uniguajira.edu.co\n';
+          '0182120016;Álvaro Luis Garrido Medina;alvaro@institucion.edu.co\n'
+          '0182110072;María Camila Ipuana;maria@institucion.edu.co\n';
 
       final result = await service.importFromCsvString(course.id, csv);
 
@@ -239,7 +239,7 @@ void main() {
       sheet.appendRow(<CellValue>[
         TextCellValue('0182120016'),
         TextCellValue('José   Ángel Pérez'),
-        TextCellValue('jose@uniguajira.edu.co'),
+        TextCellValue('jose@institucion.edu.co'),
       ]);
       sheet.appendRow(<CellValue>[
         TextCellValue('0182110072'),
@@ -261,7 +261,7 @@ void main() {
       expect(result.insertedStudents[0].bitIndex, 0);
       expect(result.insertedStudents[1].bitIndex, 1);
       expect(result.insertedStudents.first.fullName, 'JOSE ANGEL PEREZ');
-      expect(result.insertedStudents.first.email, 'jose@uniguajira.edu.co');
+      expect(result.insertedStudents.first.email, 'jose@institucion.edu.co');
       expect(result.insertedStudents.last.email, isNull);
 
       // Verificación en SQLite
@@ -316,12 +316,12 @@ void main() {
         courseId: course.id,
         studentCode: ' 0182120016 ',
         fullName: '  José   Ángel  Pérez ',
-        email: ' jose@uniguajira.edu.co ',
+        email: ' jose@institucion.edu.co ',
       );
 
       expect(student.studentCode, '0182120016');
       expect(student.fullName, 'JOSE ANGEL PEREZ');
-      expect(student.email, 'jose@uniguajira.edu.co');
+      expect(student.email, 'jose@institucion.edu.co');
       expect(student.bitIndex, 0);
       expect(RegExp(r'^[0-9a-f]{64}$').hasMatch(student.personalSecret), isTrue);
 

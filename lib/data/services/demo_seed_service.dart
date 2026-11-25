@@ -38,7 +38,7 @@ class DemoSeedResult {
   /// Cantidad de actas criptográficas con firma HMAC-SHA256 (esperado: 4).
   final int signedActasCount;
 
-  /// Código del estudiante enrolado en la billetera local (esperado: '0182120016').
+  /// Código del estudiante enrolado en la billetera local (esperado: '0126000001').
   final String enrolledStudentCode;
 
   /// Posición en el Bitmap del estudiante enrolado (esperado: 0).
@@ -108,13 +108,13 @@ class DemoSeedService {
   static const String demoSemester = '2026-2';
 
   /// Correo institucional docente de la demostración.
-  static const String demoTeacherEmail = 'mromero@uniguajira.edu.co';
+  static const String demoTeacherEmail = 'docente.demo@institucion.edu.co';
 
   /// Código del estudiante expositor principal (Bit 00).
-  static const String primaryStudentCode = '0182120016';
+  static const String primaryStudentCode = '0126000001';
 
   /// Código del estudiante expositor secundario (Bit 01).
-  static const String secondaryStudentCode = '0182110072';
+  static const String secondaryStudentCode = '0126000002';
 
   /// Secreto criptográfico de 32 bytes (64 caracteres hexadecimales) para el curso demo.
   static const String demoCourseSecret =
@@ -126,64 +126,64 @@ class DemoSeedService {
 
   static const List<Map<String, String>> officialRoster = <Map<String, String>>[
     <String, String>{
-      'code': '0182120016',
-      'name': 'ISAZA VIDES YONER DE JESUS',
-      'email': 'yisaza@uniguajira.edu.co',
+      'code': '0126000001',
+      'name': 'HERRERA CASTILLO MATEO',
+      'email': 'mherrera@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182110072',
-      'name': 'GARRIDO MEDINA ALVARO LUIS',
-      'email': 'agarrido@uniguajira.edu.co',
+      'code': '0126000002',
+      'name': 'RODRIGUEZ LOPEZ SOFIA',
+      'email': 'srodriguez@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182120021',
-      'name': 'BARROS PUSHAINA CAMILA ANDREA',
-      'email': 'cbarros@uniguajira.edu.co',
+      'code': '0126000003',
+      'name': 'MARTINEZ SUAREZ SANTIAGO',
+      'email': 'smartinez@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182120022',
-      'name': 'EPIAYU IPUANA CARLOS ALBERTO',
-      'email': 'cepiayu@uniguajira.edu.co',
+      'code': '0126000004',
+      'name': 'GARCIA MENDOZA ISABELLA',
+      'email': 'igarcia@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182120023',
-      'name': 'FREYLE COTES DANIELA PAOLA',
-      'email': 'dfreyle@uniguajira.edu.co',
+      'code': '0126000005',
+      'name': 'LOPEZ DUARTE VALENTINA',
+      'email': 'vlopez@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182120024',
-      'name': 'GOMEZ ZUNIGA JORGE ELIECER',
-      'email': 'jgomez@uniguajira.edu.co',
+      'code': '0126000006',
+      'name': 'MORALES CHAVEZ JUAN ESTEBAN',
+      'email': 'jmorales@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182120025',
-      'name': 'REDONDO IGUARAN LUIS FERNANDO',
-      'email': 'lredondo@uniguajira.edu.co',
+      'code': '0126000007',
+      'name': 'CASTRO ORTIZ CAMILA',
+      'email': 'ccastro@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182120026',
-      'name': 'SOLANO BRITO MARIA CAMILA',
-      'email': 'msolano@uniguajira.edu.co',
+      'code': '0126000008',
+      'name': 'RAMIREZ NAVARRO SAMUEL',
+      'email': 'sramirez@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182120027',
-      'name': 'URIETA PIMIENTA NELSON DAVID',
-      'email': 'nurieta@uniguajira.edu.co',
+      'code': '0126000009',
+      'name': 'VARGAS OSORIO MARIANA',
+      'email': 'mvargas@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182120028',
-      'name': 'VALDEBLANQUEZ DAZA VALENTINA',
-      'email': 'vvaldeblanquez@uniguajira.edu.co',
+      'code': '0126000010',
+      'name': 'JIMENEZ QUINTERO GABRIEL',
+      'email': 'gjimenez@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182120029',
-      'name': 'ZUBIRIA MAESTRE ANDRES FELIPE',
-      'email': 'azubiria@uniguajira.edu.co',
+      'code': '0126000011',
+      'name': 'TORRES AGUILAR LUCIA',
+      'email': 'ltorres@institucion.edu.co',
     },
     <String, String>{
-      'code': '0182120030',
-      'name': 'PINTO ARREGOCES LAURA VANESSA',
-      'email': 'lpinto@uniguajira.edu.co',
+      'code': '0126000012',
+      'name': 'SILVA BENITEZ DANIEL',
+      'email': 'dsilva@institucion.edu.co',
     },
   ];
 
@@ -195,7 +195,7 @@ class DemoSeedService {
   ///
   /// Si [resetExisting] es `false` y el curso ya existe, retorna inmediatamente
   /// el estado actual sin duplicar registros y asegurando que la credencial del
-  /// estudiante '0182120016' esté registrada en la billetera.
+  /// estudiante '0126000001' esté registrada en la billetera.
   /// Si [resetExisting] es `true`, elimina el curso existente (con borrado en cascada
   /// de estudiantes, sesiones, registros y actas) y limpia la credencial de enrolamiento
   /// antes de reconstruir el escenario desde cero.
