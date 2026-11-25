@@ -80,7 +80,7 @@ Versión actual: **1.0.0** — [notas de lanzamiento](CHANGELOG.md)
 El control de asistencia tradicional suele oscilar entre listas de papel propensas a errores o sistemas en la nube que fallan ante la inestabilidad de la red inalámbrica del campus. AsistenciaBLE resuelve ambos problemas operando bajo un modelo **serverless y offline-first**:
 - No requiere configurar, pagar ni mantener servidores.
 - Cero consumo de datos móviles o internet durante la clase.
-- Validación criptográfica que previene el fraude por suplantación o asistencia remota.
+- Etiquetas criptográficas rotativas y un alcance corto que dificultan mucho la suplantación y la asistencia a distancia.
 - Dos sabores especializados (**Docente** y **Estudiante**) generados desde una única base de código Flutter.
 
 ---
@@ -159,9 +159,9 @@ Durante cada clase regular, el proceso de registro toma pocos segundos:
 Descarga la versión correspondiente a tu rol desde [GitHub Releases](https://github.com/y0ner/asistencia-ble/releases/latest):
 
 - **Para Profesores:** [Descargar App Docente (`asistenciable-docente-v1.0.0-arm64.apk`)](https://github.com/y0ner/asistencia-ble/releases/latest/download/asistenciable-docente-v1.0.0-arm64.apk)  
-  *Application ID (perfil piloto):* `co.edu.uniguajira.asistencia_uniguajira.docente`
+  *Application ID:* `co.edu.uniguajira.asistencia_uniguajira.docente`
 - **Para Estudiantes:** [Descargar App Estudiante (`asistenciable-estudiante-v1.0.0-arm64.apk`)](https://github.com/y0ner/asistencia-ble/releases/latest/download/asistenciable-estudiante-v1.0.0-arm64.apk)  
-  *Application ID (perfil piloto):* `co.edu.uniguajira.asistencia_uniguajira.estudiante`
+  *Application ID:* `co.edu.uniguajira.asistencia_uniguajira.estudiante`
 
 **Detalles del paquete:**
 - **Tamaño de la APK:** ~{{APK_SIZE_MB}} MB
@@ -193,7 +193,7 @@ AsistenciaBLE ha sido diseñada siguiendo principios estrictos de privacidad y m
   - `ACCESS_FINE_LOCATION` y `ACCESS_COARSE_LOCATION`: Requerido exclusivamente en Android 11 o inferior (`maxSdkVersion 30`) por exigencia del sistema operativo para escaneo BLE. La aplicación no activa GPS ni recopila coordenadas geográficas.
   - `CAMERA`: Usado únicamente para el escaneo óptico del código QR de inscripción al curso.
   - `INTERNET`: Empleado exclusivamente si el docente decide activar la sincronización voluntaria con Google Sheets y Google Drive.
-- **Cumplimiento normativo:** Cumple con la Ley Estatutaria 1581 de 2012 de Colombia sobre Protección de Datos Personales.
+- **Datos personales:** Diseñada teniendo en cuenta la Ley Estatutaria 1581 de 2012 de Colombia.
 
 ---
 
@@ -201,8 +201,8 @@ AsistenciaBLE ha sido diseñada siguiendo principios estrictos de privacidad y m
 
 ### Requisitos previos
 - Flutter SDK 3.47.1 o compatible (Dart 3.13+)
-- Android SDK con herramientas de plataforma (minSdk 24, targetSdk 34+)
-- OpenJDK 17 o 21
+- Android SDK con herramientas de plataforma (minSdk 24)
+- JDK 17 (o el JBR incluido con Android Studio)
 
 ### Comandos de ejecución y compilación (`run.sh`)
 

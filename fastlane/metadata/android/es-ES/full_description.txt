@@ -23,8 +23,8 @@ CARACTERÍSTICAS PRINCIPALES
 • Gestión ágil de listas: Importación directa desde archivos .xlsx y .csv, pegado desde el portapapeles o registro manual.
 
 PRIVACIDAD Y SEGURIDAD
-• Sin servidores ni rastreo: Sin telemetría ni bases de datos en la nube. Cumple con la Ley 1581 de 2012 de protección de datos personales.
-• Verificación física real: Tokens rotativos y umbrales RSSI que impiden registros remotos o suplantaciones.
+• Sin servidores ni rastreo: Sin telemetría ni bases de datos en la nube. Pensada para la Ley 1581 de 2012 de protección de datos personales.
+• Verificación física real: Tokens rotativos y umbrales RSSI que dificultan los registros remotos y las suplantaciones.
 • Permisos mínimos: Bluetooth LE para proximidad física; Ubicación solo en Android 11 o inferior por requerimiento del sistema operativo para escaneo BLE (sin GPS ni geolocalización); Cámara únicamente para escanear el QR de inscripción; Internet solo si el docente activa el respaldo voluntario en Google.
 
 PROYECTO ACADÉMICO

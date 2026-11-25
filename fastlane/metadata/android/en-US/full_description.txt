@@ -24,7 +24,7 @@ KEY FEATURES
 
 PRIVACY & SECURITY
 • Serverless & Zero Telemetry: No external tracking, no analytics, no third-party servers.
-• Proximity Verification: Cryptographic rotating tokens and RSSI thresholds prevent remote attendance fraud and proxy check-ins.
+• Proximity Verification: Cryptographic rotating tokens and RSSI thresholds make remote attendance and proxy check-ins much harder.
 • Minimal Permissions: Bluetooth LE for device proximity; Location only requested on Android 11 and lower as mandated by the OS for BLE scanning (never used for GPS or location tracking); Camera used strictly for optical QR enrollment; Internet used solely for optional Google Drive backup.
 
 ACADEMIC PROJECT

@@ -22,8 +22,8 @@ El proyecto sigue una estrategia estructurada de ramas y revisiones:
 
 ### Requisitos del entorno
 - **Flutter SDK:** 3.47.1 o compatible (Dart 3.13+).
-- **JDK:** OpenJDK 17 o 21 (o el JBR incluido con Android Studio).
-- **Android SDK:** `minSdkVersion 24` (Android 7.0+), `targetSdkVersion 34` o superior.
+- **JDK:** JDK 17 (o el JBR incluido con Android Studio).
+- **Android SDK:** `minSdkVersion 24` (Android 7.0+). 
 - **Dispositivos:** Teléfonos Android compatibles con Bluetooth Low Energy y modo periférico (BLE Advertising).
 
 ### Comandos de desarrollo (`./run.sh`)

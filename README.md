@@ -80,7 +80,7 @@ Current version: **1.0.0** — [release notes](CHANGELOG.md)
 Traditional university attendance tracking suffers from either slow, paper-based roll calls or fragile cloud solutions that collapse when campus Wi-Fi falters. AsistenciaBLE solves both problems by operating completely **serverless and offline**:
 - No central servers to maintain, pay for, or secure.
 - Zero internet dependency during lecture hours.
-- Strong cryptographic authentication that prevents proxy check-ins and remote attendance spoofing.
+- Rotating cryptographic tags and a short proximity range make proxy check-ins and remote attendance much harder.
 - Two distinct roles (**Teacher** and **Student**) built from a unified Flutter codebase.
 
 ---
@@ -159,9 +159,9 @@ During routine classes, marking attendance takes only a few seconds:
 Download the latest release for your role from [GitHub Releases](https://github.com/y0ner/asistencia-ble/releases/latest):
 
 - **For Teachers:** [Download Teacher App (`asistenciable-docente-v1.0.0-arm64.apk`)](https://github.com/y0ner/asistencia-ble/releases/latest/download/asistenciable-docente-v1.0.0-arm64.apk)  
-  *Application ID (pilot profile):* `co.edu.uniguajira.asistencia_uniguajira.docente`
+  *Application ID:* `co.edu.uniguajira.asistencia_uniguajira.docente`
 - **For Students:** [Download Student App (`asistenciable-estudiante-v1.0.0-arm64.apk`)](https://github.com/y0ner/asistencia-ble/releases/latest/download/asistenciable-estudiante-v1.0.0-arm64.apk)  
-  *Application ID (pilot profile):* `co.edu.uniguajira.asistencia_uniguajira.estudiante`
+  *Application ID:* `co.edu.uniguajira.asistencia_uniguajira.estudiante`
 
 **Package details:**
 - **APK size:** ~{{APK_SIZE_MB}} MB
@@ -193,7 +193,7 @@ AsistenciaBLE is built from the ground up around data minimization and user priv
   - `ACCESS_FINE_LOCATION` & `ACCESS_COARSE_LOCATION`: Required strictly on Android 11 and lower (`maxSdkVersion 30`) by OS security policy to scan BLE devices. No GPS hardware or geographical location is ever queried or collected.
   - `CAMERA`: Used exclusively for real-time optical scanning of the classroom enrollment QR code.
   - `INTERNET`: Required solely if the teacher chooses to enable optional Google Sheets and Google Drive synchronization.
-- **Legal Compliance:** Complies with personal data protection regulations, including Colombian Statutory Law 1581 of 2012.
+- **Personal data:** Designed with Colombia's Statutory Law 1581 of 2012 on personal data protection in mind.
 
 ---
 
@@ -201,8 +201,8 @@ AsistenciaBLE is built from the ground up around data minimization and user priv
 
 ### Prerequisites
 - Flutter SDK 3.47.1 or compatible (Dart 3.13+)
-- Android SDK with platform tools (minSdk 24, targetSdk 34+)
-- OpenJDK 17 or 21
+- Android SDK with platform tools (minSdk 24)
+- JDK 17 (or the JBR bundled with Android Studio)
 
 ### Development commands (`run.sh`)
 
