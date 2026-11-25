@@ -1,5 +1,5 @@
 name: asistencia_uniguajira
-description: "Registro y control de asistencia académica Offline-First de la Universidad de La Guajira."
+description: "AsistenciaBLE: registro de asistencia por proximidad Bluetooth (BLE), sin servidor y sin conexión, para instituciones de educación superior."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -60,6 +60,7 @@ flutter:
 
   assets:
     - assets/brand/escudo_uniguajira.png
+    - assets/brand/asistenciable_icono.png
 
   # Figtree (SIL Open Font License 1.1, ver assets/fonts/OFL.txt).
   fonts:

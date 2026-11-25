@@ -13,9 +13,9 @@ enum AppFlavor {
   String get title {
     switch (this) {
       case AppFlavor.docente:
-        return 'Asistencia Docente';
+        return 'AsistenciaBLE Docente';
       case AppFlavor.estudiante:
-        return 'Asistencia Estudiante';
+        return 'AsistenciaBLE Estudiante';
     }
   }
 

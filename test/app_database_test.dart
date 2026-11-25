@@ -36,7 +36,7 @@ StudentModel _student({
     courseId: courseId,
     studentCode: studentCode,
     fullName: 'Estudiante $studentCode',
-    email: '$studentCode${AppConstants.institutionalDomain}',
+    email: '$studentCode@institucion.edu.co',
     bitIndex: bitIndex,
     personalSecret: _personalSecret,
     enrolledAt: '2026-11-06T08:02:00.000-05:00',

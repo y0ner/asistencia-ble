@@ -19,8 +19,8 @@ void main() {
 
   group('Pruebas de AppFlavor y Puntos de Entrada', () {
     test('AppFlavor define títulos y pantallas correctas', () {
-      expect(AppFlavor.docente.title, 'Asistencia Docente');
-      expect(AppFlavor.estudiante.title, 'Asistencia Estudiante');
+      expect(AppFlavor.docente.title, 'AsistenciaBLE Docente');
+      expect(AppFlavor.estudiante.title, 'AsistenciaBLE Estudiante');
 
       expect(AppFlavor.docente.homeScreen, isA<CoursesDashboardScreen>());
       expect(AppFlavor.estudiante.homeScreen, isA<StudentCoursesScreen>());
@@ -42,7 +42,7 @@ void main() {
 
         expect(find.byType(CoursesDashboardScreen), findsOneWidget);
         expect(find.byType(StudentCoursesScreen), findsNothing);
-        expect(find.text('Asistencia'), findsOneWidget);
+        expect(find.text('AsistenciaBLE'), findsOneWidget);
         expect(find.byIcon(Icons.help_outline_rounded), findsOneWidget);
       },
     );
@@ -60,7 +60,7 @@ void main() {
 
         expect(find.byType(StudentCoursesScreen), findsOneWidget);
         expect(find.byType(CoursesDashboardScreen), findsNothing);
-        expect(find.text('Asistencia'), findsOneWidget);
+        expect(find.text('AsistenciaBLE'), findsOneWidget);
         expect(find.byIcon(Icons.help_outline_rounded), findsOneWidget);
       },
     );

@@ -76,7 +76,7 @@ abstract final class EnrollmentPacketCodec {
   static const int responseMacLength = 10;
   static const int noBitIndex = 0xFF;
 
-  /// Códigos numéricos de 4 a 12 dígitos (en la Uniguajira son 10).
+  /// Códigos numéricos de 4 a 12 dígitos (en la institución piloto son 10).
   static final RegExp studentCodePattern = RegExp(r'^\d{4,12}$');
 
   static bool isValidStudentCode(String code) => studentCodePattern.hasMatch(code);

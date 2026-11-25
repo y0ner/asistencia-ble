@@ -299,8 +299,8 @@ class _RosterImportModalState extends State<RosterImportModal> {
           maxLines: 6,
           minLines: 3,
           decoration: const InputDecoration(
-            hintText: '0123456789  JUAN PEREZ  jperez@uniguajira.edu.co\n'
-                '0987654321  MARIA GOMEZ  mgomez@uniguajira.edu.co',
+            hintText: '0123456789  JUAN PEREZ  jperez@institucion.edu.co\n'
+                '0987654321  MARIA GOMEZ  mgomez@institucion.edu.co',
           ),
         ),
         const SizedBox(height: UiSpace.xl),
@@ -399,7 +399,7 @@ class _RosterImportModalState extends State<RosterImportModal> {
             controller: _manualEmailController,
             decoration: const InputDecoration(
               labelText: 'Correo electrónico (opcional)',
-              hintText: 'usuario@uniguajira.edu.co',
+              hintText: 'usuario@institucion.edu.co',
             ),
             keyboardType: TextInputType.emailAddress,
           ),

@@ -532,7 +532,7 @@ void main() {
           courseId: courseId,
           studentCode: studentCodeWithLeadingZero,
           fullName: 'Carlos Alberto Perez Guajiro',
-          email: 'cperez@uniguajira.edu.co',
+          email: 'cperez@institucion.edu.co',
         );
 
         expect(student.studentCode, equals(studentCodeWithLeadingZero));

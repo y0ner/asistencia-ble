@@ -1,0 +1,10 @@
+Lanzamiento inicial de AsistenciaBLE (v1.0.0):
+• Asistencia offline por Bluetooth Low Energy
+• Tokens HMAC-SHA256 y eco en mapa de bits de 64 bits
+• Importación de listas (.xlsx, .csv, portapapeles)
+• Lista invertida para estudiantes sin celular
+• Inscripción el primer día por QR con claves X25519
+• Reporte Excel (.xlsx) con 4 hojas y acta firmada
+• Respaldo opcional en Google Sheets/Drive
+• Recorrido animado y centro de ayuda
+• Sabores Docente y Estudiante

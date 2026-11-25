@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────
-# Asistencia Uniguajira · Script de desarrollo y ejecución
+# AsistenciaBLE · Script de desarrollo y ejecución
 # Sistema de Asistencia Offline-First con BLE y SQLite
 #
 # Uso:
@@ -29,18 +29,26 @@ export PATH="$JAVA_HOME/bin:$HOME/flutter/bin:$ANDROID_HOME/platform-tools:$PATH
 
 ACTION="${1:-help}"
 
+DART_DEFINES=()
+if [ -n "${INSTITUCION:-}" ]; then
+  DART_DEFINES+=("--dart-define=INSTITUCION=$INSTITUCION")
+fi
+if [ -n "${DEMO_SEED:-}" ]; then
+  DART_DEFINES+=("--dart-define=DEMO_SEED=$DEMO_SEED")
+fi
+
 # 1. Opciones para compilar APKs por flavor
 if [ "$ACTION" = "apk-docente" ]; then
-  echo "▶ Compilando APK Release de Asistencia Docente..."
-  flutter build apk --release --flavor docente -t lib/main_docente.dart --android-skip-build-dependency-validation "${@:2}"
+  echo "▶ Compilando APK Release de AsistenciaBLE Docente..."
+  flutter build apk --release --flavor docente -t lib/main_docente.dart --android-skip-build-dependency-validation "${DART_DEFINES[@]}" "${@:2}"
   echo "✔ APK Docente generado con éxito en: build/app/outputs/flutter-apk/app-docente-release.apk"
   ls -lh build/app/outputs/flutter-apk/app-docente-release.apk 2>/dev/null || true
   exit 0
 fi
 
 if [ "$ACTION" = "apk-estudiante" ]; then
-  echo "▶ Compilando APK Release de Asistencia Estudiante..."
-  flutter build apk --release --flavor estudiante -t lib/main_estudiante.dart --android-skip-build-dependency-validation "${@:2}"
+  echo "▶ Compilando APK Release de AsistenciaBLE Estudiante..."
+  flutter build apk --release --flavor estudiante -t lib/main_estudiante.dart --android-skip-build-dependency-validation "${DART_DEFINES[@]}" "${@:2}"
   echo "✔ APK Estudiante generado con éxito en: build/app/outputs/flutter-apk/app-estudiante-release.apk"
   ls -lh build/app/outputs/flutter-apk/app-estudiante-release.apk 2>/dev/null || true
   exit 0
@@ -48,7 +56,7 @@ fi
 
 # 2. Opción para compilar el APK directamente (compila las dos apps)
 if [ "$ACTION" = "build-apk" ] || [ "$ACTION" = "apk" ]; then
-  echo "▶ Compilando APKs Release de Asistencia Uniguajira (Docente y Estudiante)..."
+  echo "▶ Compilando APKs Release de AsistenciaBLE (Docente y Estudiante)..."
   "$0" apk-docente "${@:2}"
   "$0" apk-estudiante "${@:2}"
   echo "✔ Ambos APKs compilados con éxito."
@@ -114,12 +122,12 @@ if [ "$ACTION" = "docente" ] || [ "$ACTION" = "estudiante" ]; then
 
   EXTRA_FLAGS="--android-skip-build-dependency-validation"
   echo "▶ Ejecutando Asistencia ($FLAVOR) en: $DEVICE"
-  flutter run --flavor "$FLAVOR" -t "$TARGET" -d "$DEVICE" $EXTRA_FLAGS "${EXTRA_ARGS[@]}"
+  flutter run --flavor "$FLAVOR" -t "$TARGET" -d "$DEVICE" $EXTRA_FLAGS "${DART_DEFINES[@]}" "${EXTRA_ARGS[@]}"
   exit 0
 fi
 
 # 6. Ejecución por defecto o ayuda: mostrar uso
-echo "Asistencia Uniguajira · Script de desarrollo y ejecución"
+echo "AsistenciaBLE · Script de desarrollo y ejecución"
 echo ""
 echo "Uso:"
 echo "  ./run.sh docente [dispositivo]     Ejecuta sabor Docente en Android o Linux"
@@ -129,4 +137,8 @@ echo "  ./run.sh apk-estudiante            Compila APK Release del sabor Estudia
 echo "  ./run.sh build-apk                 Compila ambos APKs Release (Docente y Estudiante)"
 echo "  ./run.sh test                      Ejecuta la suite de pruebas unitarias y E2E"
 echo "  ./run.sh analyze                   Ejecuta análisis estático con linter"
+echo ""
+echo "Perfiles institucionales:"
+echo "  INSTITUCION=uniguajira ./run.sh apk   # perfil piloto con escudo y dominio"
+echo "  DEMO_SEED=true ./run.sh apk            # carga una clase de demostración (capturas)"
 exit 0

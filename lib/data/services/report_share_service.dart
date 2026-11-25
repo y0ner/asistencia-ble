@@ -147,7 +147,7 @@ class ReportShareService {
     final trimmedCourseName = courseName.trim().isEmpty ? 'Asignatura' : courseName.trim();
     final subject = 'Reporte oficial de asistencia - $trimmedCourseName';
     final text =
-        'Reporte oficial de asistencia del curso $trimmedCourseName generado por Asistencia Uniguajira.';
+        'Reporte oficial de asistencia del curso $trimmedCourseName generado por AsistenciaBLE.';
 
     final params = ShareParams(
       files: <XFile>[

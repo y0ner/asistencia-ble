@@ -1,0 +1,1892 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AsistenciaBLE</title>
+<meta name="description" content="Pasa lista en segundos, sin internet y sin servidor. Asistencia universitaria por proximidad Bluetooth Low Energy entre celulares.">
+<meta name="theme-color" content="#1F7A87" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0C1719" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="apple-touch-icon" href="img/icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="AsistenciaBLE">
+<meta property="og:description" content="Pasa lista en segundos, sin internet y sin servidor. Asistencia universitaria por proximidad Bluetooth Low Energy.">
+<meta property="og:url" content="https://asistencia-ble.vercel.app/">
+<meta property="og:image" content="https://asistencia-ble.vercel.app/img/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+@font-face {
+  font-family: 'Figtree';
+  src: url('fonts/Figtree-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Figtree';
+  src: url('fonts/Figtree-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Figtree';
+  src: url('fonts/Figtree-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Figtree';
+  src: url('fonts/Figtree-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Figtree';
+  src: url('fonts/Figtree-ExtraBold.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --bg: #F3F6F6;
+  --surface: #FFFFFF;
+  --ink: #10262B;
+  --muted: #51666B;
+  --line: #DDE5E6;
+  --primary: #1F7A87;
+  --on-primary: #FFFFFF;
+  --primary-text: #17616C;
+  --tint: #E3F1F3;
+  --tint-text: #17616C;
+  --manual-bg: #FCF1DD;
+  --manual-text: #7A4E08;
+  --absent-bg: #FBE9E6;
+  --absent-text: #A23A2B;
+  --present-dot: #4CA4B0;
+  --manual-dot: #E8A44C;
+  --absent-dot: #D46454;
+  --band-bg: #0C1719;
+  --band-surface: #142326;
+  --band-text: #EEF5F6;
+  --band-muted: #9DB3B7;
+  --band-line: #24383C;
+  --shadow: 0 16px 40px rgba(16, 38, 43, 0.08);
+  --shadow-lg: 0 24px 60px rgba(16, 38, 43, 0.14);
+  --sans: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1719;
+    --surface: #142326;
+    --ink: #EEF5F6;
+    --muted: #9DB3B7;
+    --line: #24383C;
+    --primary: #4CA4B0;
+    --on-primary: #06181B;
+    --primary-text: #7CC7D1;
+    --tint: #18363B;
+    --tint-text: #8BD0DA;
+    --manual-bg: #3A2C12;
+    --manual-text: #F0BE72;
+    --absent-bg: #3B1E19;
+    --absent-text: #F0958A;
+    --shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0C1719;
+  --surface: #142326;
+  --ink: #EEF5F6;
+  --muted: #9DB3B7;
+  --line: #24383C;
+  --primary: #4CA4B0;
+  --on-primary: #06181B;
+  --primary-text: #7CC7D1;
+  --tint: #18363B;
+  --tint-text: #8BD0DA;
+  --manual-bg: #3A2C12;
+  --manual-text: #F0BE72;
+  --absent-bg: #3B1E19;
+  --absent-text: #F0958A;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #F3F6F6;
+  --surface: #FFFFFF;
+  --ink: #10262B;
+  --muted: #51666B;
+  --line: #DDE5E6;
+  --primary: #1F7A87;
+  --on-primary: #FFFFFF;
+  --primary-text: #17616C;
+  --tint: #E3F1F3;
+  --tint-text: #17616C;
+  --manual-bg: #FCF1DD;
+  --manual-text: #7A4E08;
+  --absent-bg: #FBE9E6;
+  --absent-text: #A23A2B;
+  --shadow: 0 16px 40px rgba(16, 38, 43, 0.08);
+  --shadow-lg: 0 24px 60px rgba(16, 38, 43, 0.14);
+  color-scheme: light;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+.wrap {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+h1, h2, h3, h4 {
+  margin: 0;
+  color: var(--ink);
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+p {
+  margin: 0;
+}
+
+.eyebrow {
+  display: inline-block;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Navegación fija */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+
+.nav .wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 64px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.logo img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 20px;
+  margin-left: auto;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.nav-links a {
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.nav-links a:hover {
+  color: var(--primary);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lang {
+  display: flex;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  overflow: hidden;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lang button {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 10px;
+  color: var(--muted);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lang button[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.theme-btn {
+  all: unset;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.theme-btn:hover {
+  transform: scale(1.05);
+}
+
+.theme-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Botones */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 13px 22px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  min-height: 48px;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.06);
+}
+
+.btn-secondary {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.btn-outline {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.btn-outline:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 13.5px;
+  min-height: 38px;
+}
+
+.btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Héroe */
+.hero {
+  padding-block: 56px 40px;
+  position: relative;
+}
+
+.hero .wrap {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 40px;
+  align-items: center;
+}
+
+.hero h1 {
+  font-size: clamp(34px, 5.2vw, 56px);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  margin-top: 10px;
+}
+
+.hero .lead {
+  font-size: clamp(16px, 1.5vw, 19px);
+  color: var(--muted);
+  max-width: 38em;
+  margin-top: 20px;
+  line-height: 1.55;
+}
+
+.cta-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 24px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.hero-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hero-meta span::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.hero-stage {
+  position: relative;
+  height: 520px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hero-phone {
+  position: absolute;
+  width: 236px;
+  border-radius: 32px;
+  padding: 8px;
+  background: #0C1719;
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--line);
+}
+
+.hero-phone img {
+  border-radius: 24px;
+  width: 100%;
+  height: auto;
+}
+
+.ph-left {
+  left: 6%;
+  top: 48px;
+  transform: rotate(-5deg);
+}
+
+.ph-right {
+  right: 6%;
+  top: 12px;
+  transform: rotate(4deg);
+}
+
+/* Secciones generales */
+.sec-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 680px;
+  margin-bottom: 36px;
+}
+
+.sec-head h2 {
+  font-size: clamp(26px, 3.4vw, 38px);
+}
+
+.sec-head p {
+  color: var(--muted);
+  font-size: 16.5px;
+}
+
+/* Cómo funciona */
+.how-section {
+  padding-block: 64px;
+  border-top: 1px solid var(--line);
+}
+
+.how-block {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 32px;
+  margin-bottom: 28px;
+  box-shadow: var(--shadow);
+}
+
+.how-block-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.pill-amber {
+  background: var(--manual-bg);
+  color: var(--manual-text);
+}
+
+.pill-teal {
+  background: var(--tint);
+  color: var(--primary-text);
+}
+
+.step-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.step-card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.step-img-wrap {
+  width: 100%;
+  aspect-ratio: 320 / 220;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--tint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.role-chip {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  width: fit-content;
+}
+
+.role-teacher {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.role-student {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+}
+
+.role-auto {
+  background: var(--manual-bg);
+  color: var(--manual-text);
+}
+
+.step-card h4 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.step-card p {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.callout-box {
+  background: var(--tint);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.callout-box svg {
+  width: 28px;
+  height: 28px;
+  stroke: var(--primary-text);
+  fill: none;
+  stroke-width: 2;
+  flex-shrink: 0;
+}
+
+.callout-box p {
+  font-size: 14.5px;
+  color: var(--primary-text);
+  font-weight: 500;
+}
+
+/* Funciones */
+.features-section {
+  padding-block: 64px;
+  border-top: 1px solid var(--line);
+}
+
+.fgrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.fcard {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  transition: transform 0.15s ease;
+}
+
+.fcard:hover {
+  transform: translateY(-2px);
+}
+
+.ficon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--tint);
+  color: var(--primary-text);
+  display: grid;
+  place-items: center;
+}
+
+.ficon svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fcard h3 {
+  font-size: 17.5px;
+  font-weight: 700;
+}
+
+.fcard p {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* Franja oscura "Por dentro" */
+.band-section {
+  background: var(--band-bg);
+  color: var(--band-text);
+  padding-block: 80px;
+  border-top: 1px solid var(--band-line);
+  border-bottom: 1px solid var(--band-line);
+}
+
+.band-section .eyebrow {
+  color: var(--primary);
+}
+
+.band-section h2 {
+  color: var(--band-text);
+}
+
+.band-section .sec-head p {
+  color: var(--band-muted);
+}
+
+.band-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.specs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.spec-tile {
+  background: var(--band-surface);
+  border: 1px solid var(--band-line);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spec-tile h4 {
+  color: var(--band-text);
+  font-size: 15.5px;
+  font-weight: 700;
+}
+
+.spec-tile p {
+  color: var(--band-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.duo-stage {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.duo-stage .phone {
+  width: 190px;
+  border-radius: 28px;
+  padding: 6px;
+  background: #000000;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--band-line);
+}
+
+.duo-stage .phone img {
+  border-radius: 22px;
+  width: 100%;
+  height: auto;
+}
+
+.duo-stage .phone:last-child {
+  margin-top: 40px;
+}
+
+/* Galería */
+.gallery-section {
+  padding-block: 64px;
+}
+
+.gallery-strip {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 20px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gallery-strip figure {
+  flex: 0 0 220px;
+  margin: 0;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gallery-strip img {
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  width: 100%;
+  height: auto;
+}
+
+.gallery-strip figcaption {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Privacidad */
+.privacy-section {
+  padding-block: 64px;
+  border-top: 1px solid var(--line);
+}
+
+.pgrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.pcell {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--shadow);
+}
+
+.pcell .p-stat {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.pcell p {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.perm-table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 24px 28px;
+  box-shadow: var(--shadow);
+}
+
+.perm-table-wrap h3 {
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+
+.perm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 24px;
+}
+
+.perm-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.perm-item code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--primary-text);
+}
+
+.perm-item span {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.law-note {
+  margin-top: 20px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+/* Proyecto académico */
+.academic-section {
+  padding-block: 64px;
+  border-top: 1px solid var(--line);
+}
+
+.academic-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 36px;
+  box-shadow: var(--shadow);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+.academic-quote {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.4;
+  border-left: 4px solid var(--primary);
+  padding-left: 16px;
+}
+
+.academic-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.academic-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.academic-col dt {
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.academic-col dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.academic-disclaimer {
+  font-size: 13.5px;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  line-height: 1.5;
+}
+
+/* Ficha de descarga */
+.download-section {
+  padding-block: 64px;
+  border-top: 1px solid var(--line);
+}
+
+.dl-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.dl-main {
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dl-main h2 {
+  font-size: clamp(28px, 3.2vw, 40px);
+}
+
+.dl-main p {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.dl-spec {
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  padding: 36px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.dl-spec dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px 20px;
+  font-size: 14.5px;
+}
+
+.dl-spec dt {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.dl-spec dd {
+  margin: 0;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.hash-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.hash-box code {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ink);
+  word-break: break-all;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.copy-btn {
+  all: unset;
+  cursor: pointer;
+  align-self: flex-start;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  transition: opacity 0.15s ease;
+}
+
+.copy-btn:hover {
+  opacity: 0.8;
+}
+
+/* Pie de página */
+footer {
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  padding-block: 32px;
+}
+
+footer .wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.footer-links a:hover {
+  color: var(--primary);
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 960px) {
+  .hero .wrap {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+  .hero-stage {
+    height: 440px;
+  }
+  .hero-phone {
+    width: 200px;
+  }
+  .fgrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .step-grid {
+    grid-template-columns: 1fr;
+  }
+  .band-grid {
+    grid-template-columns: 1fr;
+  }
+  .duo-stage .phone {
+    width: 44%;
+  }
+  .pgrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dl-card {
+    grid-template-columns: 1fr;
+  }
+  .dl-spec {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 32px 24px;
+  }
+  .dl-main {
+    padding: 32px 24px;
+  }
+  .academic-details {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .nav-links {
+    display: none;
+  }
+  .nav-actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .nav .wrap {
+    justify-content: space-between;
+  }
+  .perm-grid {
+    grid-template-columns: 1fr;
+  }
+  .academic-details {
+    grid-template-columns: 1fr;
+  }
+  .specs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .fgrid {
+    grid-template-columns: 1fr;
+  }
+  .pgrid {
+    grid-template-columns: 1fr;
+  }
+  .hero-stage {
+    height: 380px;
+  }
+  .hero-phone {
+    width: 168px;
+  }
+  .how-block {
+    padding: 20px 16px;
+  }
+  .btn {
+    width: 100%;
+  }
+  .nav .btn {
+    display: none;
+  }
+  .logo {
+    font-size: 17px;
+    gap: 8px;
+  }
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="logo" href="#inicio">
+      <img src="img/icon.png" width="32" height="32" alt="AsistenciaBLE Icon">
+      <span>AsistenciaBLE</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#como-funciona" data-i18n="nav.how">Cómo funciona</a>
+      <a href="#funciones" data-i18n="nav.features">Funciones</a>
+      <a href="#por-dentro" data-i18n="nav.inside">Por dentro</a>
+      <a href="#capturas" data-i18n="nav.shots">Capturas</a>
+      <a href="#privacidad" data-i18n="nav.privacy">Privacidad</a>
+      <a href="#proyecto" data-i18n="nav.academic">Proyecto</a>
+    </nav>
+    <div class="nav-actions">
+      <div class="lang" role="group" aria-label="Idioma">
+        <button id="lang-es" type="button" aria-pressed="true">ES</button>
+        <button id="lang-en" type="button" aria-pressed="false">EN</button>
+      </div>
+      <button id="theme-btn" class="theme-btn" type="button" aria-label="Cambiar tema">
+        <svg viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364-.707-.707M6.343 6.343l-.707-.707m12.728 0-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z"/></svg>
+      </button>
+      <a class="btn btn-primary btn-sm" href="#descargar" data-i18n="nav.cta">Descargar</a>
+    </div>
+  </div>
+</header>
+
+<main id="inicio">
+  <!-- Héroe -->
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="eyebrow" data-i18n="hero.eyebrow">Asistencia por proximidad Bluetooth · v1.0.0</span>
+        <h1 data-i18n="hero.title">Pasa lista en segundos, sin internet y sin servidor</h1>
+        <p class="lead" data-i18n="hero.lead">El estudiante marca asistencia acercando su celular al del docente por Bluetooth de baja energía. Sin registros lentos, sin servidores y sin depender del wifi del salón.</p>
+        <div class="cta-group">
+          <a class="btn btn-primary" href="https://github.com/y0ner/asistencia-ble/releases/latest/download/asistenciable-docente-v1.0.0-arm64.apk">
+            <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
+            <span data-i18n="hero.cta_teacher">Descargar app del docente</span>
+          </a>
+          <a class="btn btn-secondary" href="https://github.com/y0ner/asistencia-ble/releases/latest/download/asistenciable-estudiante-v1.0.0-arm64.apk">
+            <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
+            <span data-i18n="hero.cta_student">Descargar app del estudiante</span>
+          </a>
+          <a class="btn btn-outline" href="https://github.com/y0ner/asistencia-ble">
+            <svg viewBox="0 0 24 24"><path d="M9 19c-4 1.4-4-2-6-2.5m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.6 11.6 0 0 0-6 0C6.8 2.3 5.8 2.6 5.8 2.6a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4.4 9c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg>
+            <span data-i18n="hero.source">Código fuente</span>
+          </a>
+        </div>
+        <div class="hero-meta">
+          <span>Android 7.0+</span>
+          <span>~35 MB</span>
+          <span data-i18n="hero.meta_offline">Sin internet</span>
+          <span>Apache-2.0</span>
+        </div>
+      </div>
+      <div class="hero-stage" aria-hidden="true">
+        <div class="hero-phone ph-left">
+          <img src="img/s1.webp" width="540" height="1200" alt="Inicio del docente">
+        </div>
+        <div class="hero-phone ph-right">
+          <img src="img/s4.webp" width="540" height="1200" alt="Inicio del estudiante">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Cómo funciona -->
+  <section class="how-section" id="como-funciona">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" data-i18n="how.eyebrow">Flujo paso a paso</span>
+        <h2 data-i18n="how.title">Cómo funciona</h2>
+        <p data-i18n="how.lead">Sin emparejamiento previo, sin conexiones continuas y sin consumir datos móviles.</p>
+      </div>
+
+      <!-- Bloque 1: Inscribir -->
+      <div class="how-block">
+        <div class="how-block-header">
+          <span class="pill-badge pill-amber" data-i18n="how.b1_badge">Una sola vez · Inscribir</span>
+          <h3 data-i18n="how.b1_title">Vinculación el primer día de clase</h3>
+          <p style="color:var(--muted);font-size:15px" data-i18n="how.b1_lead">Antes de iniciar las clases, cada estudiante vincula su teléfono con el del docente mediante un escaneo óptico e intercambio criptográfico.</p>
+        </div>
+        <div class="step-grid">
+          <div class="step-card">
+            <div class="step-img-wrap">
+              <img src="img/qr.svg" width="320" height="220" loading="lazy" alt="QR del curso">
+            </div>
+            <div><span class="role-chip role-teacher" data-i18n="role.teacher">Docente</span></div>
+            <h4 data-i18n="how.s1_title">Proyectar QR del curso</h4>
+            <p data-i18n="how.s1_desc">El docente proyecta en pantalla el código QR que contiene el identificador de la clase y su clave pública X25519.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-img-wrap">
+              <img src="img/codigo.svg" width="320" height="220" loading="lazy" alt="Escribir código">
+            </div>
+            <div><span class="role-chip role-student" data-i18n="role.student">Estudiante</span></div>
+            <h4 data-i18n="how.s2_title">Escanear e ingresar código</h4>
+            <p data-i18n="how.s2_desc">El estudiante escanea el código con su cámara, digita su código estudiantil y emite una solicitud BLE con su clave X25519 efímera.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-img-wrap">
+              <img src="img/aprobar.svg" width="320" height="220" loading="lazy" alt="Aprobar solicitud">
+            </div>
+            <div><span class="role-chip role-teacher" data-i18n="role.teacher">Docente</span></div>
+            <h4 data-i18n="how.s3_title">Revisar y asignar casilla</h4>
+            <p data-i18n="how.s3_desc">El docente confirma la identidad del estudiante y le asigna una casilla (0–63). Ambos derivan un secreto local compartido con HKDF-SHA256.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bloque 2: Asistencia -->
+      <div class="how-block">
+        <div class="how-block-header">
+          <span class="pill-badge pill-teal" data-i18n="how.b2_badge">En cada clase</span>
+          <h3 data-i18n="how.b2_title">Toma de asistencia en segundos</h3>
+          <p style="color:var(--muted);font-size:15px" data-i18n="how.b2_lead">Durante cada clase regular, el proceso toma solo unos segundos y confirma la asistencia de inmediato.</p>
+        </div>
+        <div class="step-grid">
+          <div class="step-card">
+            <div class="step-img-wrap">
+              <img src="img/pin.svg" width="320" height="220" loading="lazy" alt="Dictar PIN">
+            </div>
+            <div><span class="role-chip role-teacher" data-i18n="role.teacher">Docente</span></div>
+            <h4 data-i18n="how.s4_title">Iniciar y dictar PIN</h4>
+            <p data-i18n="how.s4_desc">El docente inicia la sesión en su aplicación y dicta un PIN verbal efímero de 2 dígitos a los estudiantes presentes.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-img-wrap">
+              <img src="img/acercar.svg" width="320" height="220" loading="lazy" alt="Acercar celular">
+            </div>
+            <div><span class="role-chip role-student" data-i18n="role.student">Estudiante</span></div>
+            <h4 data-i18n="how.s5_title">Digitar PIN y acercar celular</h4>
+            <p data-i18n="how.s5_desc">El estudiante digita el PIN y acerca su celular. Emite un paquete BLE con una etiqueta HMAC-SHA256 que rota cada 30 segundos.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-img-wrap">
+              <img src="img/listo.svg" width="320" height="220" loading="lazy" alt="Confirmación ¡Presente!">
+            </div>
+            <div><span class="role-chip role-auto" data-i18n="role.auto">Pasa solo</span></div>
+            <h4 data-i18n="how.s6_title">Detección y eco instantáneo</h4>
+            <p data-i18n="how.s6_desc">El docente recibe la señal por proximidad (umbral −75 dBm) y emite un eco de mapa de bits cada 1 s. El estudiante ve «¡Presente!» al instante.</p>
+          </div>
+        </div>
+        <div class="callout-box">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <p data-i18n="how.invert_note"><strong>Lista invertida de excepción:</strong> ¿Un estudiante no trajo celular o se quedó sin batería? El docente lo marca presente con un solo toque en pantalla para asegurar cero exclusión.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Funciones -->
+  <section class="features-section" id="funciones">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" data-i18n="feat.eyebrow">Diseñado para el aula</span>
+        <h2 data-i18n="feat.title">Todo lo que necesitas para gestionar la asistencia</h2>
+        <p data-i18n="feat.lead">Diseñado para ser ágil, confiable y respetuoso con la privacidad de docentes y estudiantes.</p>
+      </div>
+      <div class="fgrid">
+        <div class="fcard">
+          <div class="ficon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <h3 data-i18n="feat.1_title">Importación de listas</h3>
+          <p data-i18n="feat.1_desc">Importa listas de estudiantes directamente desde libros Excel (.xlsx) y archivos CSV, o pega datos en bloque desde el portapapeles.</p>
+        </div>
+        <div class="fcard">
+          <div class="ficon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+          <h3 data-i18n="feat.2_title">Inscripción óptica QR</h3>
+          <p data-i18n="feat.2_desc">Enrolamiento sin cables con la cámara del celular, intercambio de claves X25519 y derivación HKDF-SHA256 vinculada a la clase.</p>
+        </div>
+        <div class="fcard">
+          <div class="ficon">
+            <svg viewBox="0 0 24 24"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+          </div>
+          <h3 data-i18n="feat.3_title">Proximidad Bluetooth</h3>
+          <p data-i18n="feat.3_desc">Paquetes compactos de 16 bytes compatibles con BLE Legacy, sin emparejamiento previo ni consumo de datos móviles en el salón.</p>
+        </div>
+        <div class="fcard">
+          <div class="ficon">
+            <svg viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
+          </div>
+          <h3 data-i18n="feat.4_title">Lista invertida a un toque</h3>
+          <p data-i18n="feat.4_desc">Marca a mano inmediata para estudiantes sin teléfono móvil o con la batería agotada. Ningún estudiante queda excluido de la clase.</p>
+        </div>
+        <div class="fcard">
+          <div class="ficon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>
+          </div>
+          <h3 data-i18n="feat.5_title">Acta y Excel de 4 hojas</h3>
+          <p data-i18n="feat.5_desc">Generación oficial de libros Excel (.xlsx) estructurados en Resumen, Detalle, Sesiones y Metadatos, con actas firmadas digitalmente.</p>
+        </div>
+        <div class="fcard">
+          <div class="ficon">
+            <svg viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+          </div>
+          <h3 data-i18n="feat.6_title">Respaldo opcional en Google</h3>
+          <p data-i18n="feat.6_desc">Sincronización voluntaria y asíncrona a Google Sheets y Google Drive utilizando la cuenta de Google personal o institucional del docente.</p>
+        </div>
+        <div class="fcard">
+          <div class="ficon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h3 data-i18n="feat.7_title">Ayuda ilustrada paso a paso</h3>
+          <p data-i18n="feat.7_desc">13 escenas vectoriales explicativas, recorrido interactivo en la primera apertura y centro de ayuda temático contextual integrado.</p>
+        </div>
+        <div class="fcard">
+          <div class="ficon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </div>
+          <h3 data-i18n="feat.8_title">Sin internet en clase</h3>
+          <p data-i18n="feat.8_desc">Operación 100 % autónoma con persistencia local en SQLite (esquema v4). Nada depende de la red inalámbrica de la universidad.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Franja oscura "Por dentro" -->
+  <section class="band-section" id="por-dentro">
+    <div class="wrap">
+      <div class="band-grid">
+        <div>
+          <span class="eyebrow" data-i18n="tech.eyebrow">Arquitectura y seguridad</span>
+          <h2 data-i18n="tech.title">Ingeniería detrás de cada paquete de radio</h2>
+          <p class="lead" style="color:var(--band-muted);margin-top:12px;margin-bottom:28px" data-i18n="tech.lead">Protocolo de proximidad ligero y criptografía estándar diseñada para el estándar Bluetooth Low Energy.</p>
+          <div class="specs-grid">
+            <div class="spec-tile">
+              <h4 data-i18n="tech.1_title">HMAC-SHA256 rotativo</h4>
+              <p data-i18n="tech.1_desc">Etiqueta de autenticación de presencia que cambia cada 30 segundos para evitar ataques de retransmisión o suplantación remota.</p>
+            </div>
+            <div class="spec-tile">
+              <h4 data-i18n="tech.2_title">Paquetes de 16 bytes</h4>
+              <p data-i18n="tech.2_desc">Estructura ultracompacta compatible con BLE Legacy, respetando holgadamente el límite de anuncio de 31 bytes.</p>
+            </div>
+            <div class="spec-tile">
+              <h4 data-i18n="tech.3_title">Eco de 64 posiciones</h4>
+              <p data-i18n="tech.3_desc">El teléfono del docente emite un anuncio cada 1 segundo con un mapa de bits de 8 bytes para confirmar a toda la clase.</p>
+            </div>
+            <div class="spec-tile">
+              <h4 data-i18n="tech.4_title">Umbral RSSI de −75 dBm</h4>
+              <p data-i18n="tech.4_desc">Verificación física calibrada a corta distancia (−75 dBm en clase y −95 dBm para el enrolamiento inicial).</p>
+            </div>
+            <div class="spec-tile">
+              <h4 data-i18n="tech.5_title">X25519 y HKDF-SHA256</h4>
+              <p data-i18n="tech.5_desc">Intercambio de claves en curva elíptica para derivar un secreto criptográfico exclusivo entre el alumno y el curso.</p>
+            </div>
+            <div class="spec-tile">
+              <h4 data-i18n="tech.6_title">Hasta 64 estudiantes</h4>
+              <p data-i18n="tech.6_desc">Capacidad optimizada para grupos universitarios sin congestión del espectro ni consumo excesivo de batería.</p>
+            </div>
+          </div>
+        </div>
+        <div class="duo-stage" aria-hidden="true">
+          <div class="phone">
+            <img src="img/d1.webp" width="540" height="1200" loading="lazy" alt="Sesión en vivo docente en modo oscuro">
+          </div>
+          <div class="phone">
+            <img src="img/d2.webp" width="540" height="1200" loading="lazy" alt="Estudiante en modo oscuro">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Galería de capturas -->
+  <section class="gallery-section" id="capturas">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" data-i18n="gal.eyebrow">Interfaz real</span>
+        <h2 data-i18n="gal.title">Así se ve en un celular real</h2>
+        <p data-i18n="gal.lead">Diseñada para usarse con una sola mano, con contraste visual claro y modo oscuro completo.</p>
+      </div>
+      <div class="gallery-strip" tabindex="0" aria-label="Capturas de pantalla de AsistenciaBLE">
+        <figure>
+          <img src="img/s1.webp" width="540" height="1200" loading="lazy" alt="Inicio del docente">
+          <figcaption data-i18n="cap.1">1. Inicio del docente</figcaption>
+        </figure>
+        <figure>
+          <img src="img/s2.webp" width="540" height="1200" loading="lazy" alt="Sesión en vivo del docente">
+          <figcaption data-i18n="cap.2">2. Sesión en vivo del docente</figcaption>
+        </figure>
+        <figure>
+          <img src="img/s3.webp" width="540" height="1200" loading="lazy" alt="Estudiante: acerca el celular">
+          <figcaption data-i18n="cap.3">3. Estudiante: acerca el celular</figcaption>
+        </figure>
+        <figure>
+          <img src="img/s4.webp" width="540" height="1200" loading="lazy" alt="Inicio del estudiante">
+          <figcaption data-i18n="cap.4">4. Inicio del estudiante</figcaption>
+        </figure>
+        <figure>
+          <img src="img/s5.webp" width="540" height="1200" loading="lazy" alt="Inscripción por QR">
+          <figcaption data-i18n="cap.5">5. Inscripción por QR</figcaption>
+        </figure>
+        <figure>
+          <img src="img/s6.webp" width="540" height="1200" loading="lazy" alt="Sesión firmada">
+          <figcaption data-i18n="cap.6">6. Sesión firmada</figcaption>
+        </figure>
+        <figure>
+          <img src="img/s7.webp" width="540" height="1200" loading="lazy" alt="Centro de ayuda">
+          <figcaption data-i18n="cap.7">7. Centro de ayuda</figcaption>
+        </figure>
+        <figure>
+          <img src="img/s8.webp" width="540" height="1200" loading="lazy" alt="Inicio del docente en modo oscuro">
+          <figcaption data-i18n="cap.8">8. Inicio del docente (oscuro)</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- Privacidad -->
+  <section class="privacy-section" id="privacidad">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" data-i18n="prv.eyebrow">Privacidad y soberanía de datos</span>
+        <h2 data-i18n="prv.title">Tus datos se quedan en tu propio celular</h2>
+        <p data-i18n="prv.lead">Diseñada desde sus cimientos bajo el principio de minimización de datos y cero rastreo.</p>
+      </div>
+      <div class="pgrid">
+        <div class="pcell">
+          <span class="p-stat" data-i18n="prv.1_val">0</span>
+          <p data-i18n="prv.1_desc">servidores centrales, cuentas en la nube forzadas ni intermediarios.</p>
+        </div>
+        <div class="pcell">
+          <span class="p-stat" data-i18n="prv.2_val">0</span>
+          <p data-i18n="prv.2_desc">telemetría, bibliotecas de analítica comercial o rastreo en segundo plano.</p>
+        </div>
+        <div class="pcell">
+          <span class="p-stat" data-i18n="prv.3_val">100%</span>
+          <p data-i18n="prv.3_desc">local: almacenamiento exclusivo en la base de datos local SQLite del celular.</p>
+        </div>
+        <div class="pcell">
+          <span class="p-stat" data-i18n="prv.4_val">Google</span>
+          <p data-i18n="prv.4_desc">opcional: solo si el docente decide activar el respaldo en su Google Drive personal.</p>
+        </div>
+      </div>
+
+      <div class="perm-table-wrap">
+        <h3 data-i18n="prv.perm_title">Transparencia en permisos de Android</h3>
+        <div class="perm-grid">
+          <div class="perm-item">
+            <code>BLUETOOTH_SCAN (neverForLocation)</code>
+            <span data-i18n="prv.p_scan">Detecta los anuncios de asistencia en el salón sin acceder a la ubicación del usuario.</span>
+          </div>
+          <div class="perm-item">
+            <code>BLUETOOTH_ADVERTISE</code>
+            <span data-i18n="prv.p_adv">Emite la baliza del estudiante o el eco con mapa de bits del docente.</span>
+          </div>
+          <div class="perm-item">
+            <code>BLUETOOTH_CONNECT</code>
+            <span data-i18n="prv.p_conn">Permite la interacción con el adaptador Bluetooth local en Android 12+.</span>
+          </div>
+          <div class="perm-item">
+            <code>BLUETOOTH &amp; BLUETOOTH_ADMIN</code>
+            <span data-i18n="prv.p_legacy">Operaciones de compatibilidad en Android 11 o inferior (maxSdkVersion 30).</span>
+          </div>
+          <div class="perm-item">
+            <code>ACCESS_FINE_LOCATION</code>
+            <span data-i18n="prv.p_loc">Exigido en Android 11 o inferior por política del SO para escanear BLE. No activa GPS ni lee coordenadas.</span>
+          </div>
+          <div class="perm-item">
+            <code>CAMERA</code>
+            <span data-i18n="prv.p_cam">Usado únicamente para el escaneo óptico del código QR de inscripción al curso.</span>
+          </div>
+          <div class="perm-item">
+            <code>INTERNET</code>
+            <span data-i18n="prv.p_net">Empleado exclusivamente si el docente decide activar la sincronización voluntaria con Google Sheets y Google Drive.</span>
+          </div>
+        </div>
+        <p class="law-note" data-i18n="prv.law_note">Diseñada teniendo en cuenta la Ley Estatutaria 1581 de 2012 de Colombia sobre protección de datos personales.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Proyecto académico -->
+  <section class="academic-section" id="proyecto">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow" data-i18n="acad.eyebrow">Trabajo de grado</span>
+        <h2 data-i18n="acad.title">Proyecto académico y prueba piloto</h2>
+      </div>
+      <div class="academic-card">
+        <div class="academic-quote" data-i18n="acad.project_title">
+          «Aplicación móvil para el registro de asistencia por proximidad Bluetooth sin servidor en instituciones de educación superior»
+        </div>
+        <div class="academic-details">
+          <div class="academic-col">
+            <dt data-i18n="acad.authors_label">Autores</dt>
+            <dd>Yoner De Jesús Isaza Vides &amp; Álvaro Luis Garrido Medina</dd>
+          </div>
+          <div class="academic-col">
+            <dt data-i18n="acad.director_label">Director</dt>
+            <dd>Miguel Humberto Romero Acuña</dd>
+          </div>
+          <div class="academic-col">
+            <dt data-i18n="acad.course_label">Docente de Proyecto I</dt>
+            <dd>Lisseth Paola Castañeda Vega</dd>
+          </div>
+          <div class="academic-col">
+            <dt data-i18n="acad.faculty_label">Programa y Facultad</dt>
+            <dd>Ingeniería de Sistemas · Facultad de Ingeniería</dd>
+          </div>
+          <div class="academic-col">
+            <dt data-i18n="acad.institution_label">Institución</dt>
+            <dd>Universidad de La Guajira, Riohacha, 2026</dd>
+          </div>
+        </div>
+        <div class="academic-disclaimer" data-i18n="acad.disclaimer">
+          La solución está diseñada para cualquier institución de educación superior (IES); la prueba piloto se realiza en el programa de Ingeniería de Sistemas de la Universidad de La Guajira, sede Riohacha. No constituye una aplicación oficial de la universidad.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ficha de descarga -->
+  <section class="download-section" id="descargar">
+    <div class="wrap">
+      <div class="dl-card">
+        <div class="dl-main">
+          <div>
+            <span class="eyebrow" data-i18n="dl.eyebrow">Versión oficial</span>
+            <h2 data-i18n="dl.title">AsistenciaBLE 1.0.0</h2>
+            <p data-i18n="dl.lead">Descarga directamente la APK para tu rol. Instálala en tu dispositivo Android y comienza a gestionar la asistencia de inmediato.</p>
+          </div>
+          <div class="cta-group" style="margin-top:0">
+            <a class="btn btn-primary" href="https://github.com/y0ner/asistencia-ble/releases/latest/download/asistenciable-docente-v1.0.0-arm64.apk">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
+              <span data-i18n="dl.cta_teacher">Descargar App Docente (APK)</span>
+            </a>
+            <a class="btn btn-secondary" href="https://github.com/y0ner/asistencia-ble/releases/latest/download/asistenciable-estudiante-v1.0.0-arm64.apk">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
+              <span data-i18n="dl.cta_student">Descargar App Estudiante (APK)</span>
+            </a>
+            <a class="btn btn-outline" href="https://github.com/y0ner/asistencia-ble/releases" data-i18n="dl.notes">
+              Notas de la versión
+            </a>
+          </div>
+        </div>
+        <div class="dl-spec">
+          <dl>
+            <dt data-i18n="sp.ver">Versión</dt><dd>1.0.0</dd>
+            <dt data-i18n="sp.date">Publicada</dt><dd data-i18n="sp.dateval">25 nov 2026</dd>
+            <dt data-i18n="sp.size">Tamaño</dt><dd>~35 MB · arm64</dd>
+            <dt data-i18n="sp.req">Requiere</dt><dd>Android 7.0+ (BLE Peripheral)</dd>
+            <dt data-i18n="sp.lic">Licencia</dt><dd>Apache License 2.0</dd>
+          </dl>
+          <div class="hash-box">
+            <span class="eyebrow" style="margin-bottom:0" data-i18n="sp.cert">Certificado de firma (SHA-256)</span>
+            <code id="sha-cert">11:4F:E7:08:BD:60:DF:3E:1B:7A:D9:C0:E8:CE:D5:0E:2A:42:84:EE:C4:25:49:A7:26:6B:97:C3:AA:54:DE:5E</code>
+            <button class="copy-btn" id="copy-btn" type="button" data-i18n="sp.copy">Copiar huella</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div data-i18n="ft.info">AsistenciaBLE · Desarrollado por Yoner Isaza &amp; Álvaro Garrido · Licencia Apache-2.0</div>
+    <div class="footer-links">
+      <a href="https://github.com/y0ner/asistencia-ble">GitHub</a>
+      <a href="https://github.com/y0ner/asistencia-ble/releases" data-i18n="ft.rels">Versiones</a>
+      <a href="https://github.com/y0ner/asistencia-ble/blob/main/CHANGELOG.md" data-i18n="ft.changes">Registro de cambios</a>
+      <a href="https://github.com/y0ner/asistencia-ble/blob/main/LICENSE" data-i18n="ft.lic">Licencia</a>
+      <span data-i18n="ft.fonts">Tipografía Figtree (OFL)</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+const EN = {
+  "nav.how": "How it works",
+  "nav.features": "Features",
+  "nav.inside": "Under the hood",
+  "nav.shots": "Screenshots",
+  "nav.privacy": "Privacy",
+  "nav.academic": "Academic project",
+  "nav.cta": "Download",
+  "hero.eyebrow": "Bluetooth proximity attendance · v1.0.0",
+  "hero.title": "Take attendance in seconds, offline and serverless",
+  "hero.lead": "Students mark attendance by bringing their phone close to the teacher's over Bluetooth Low Energy. No slow roll calls, no servers, and zero reliance on classroom Wi-Fi.",
+  "hero.cta_teacher": "Download Teacher App",
+  "hero.cta_student": "Download Student App",
+  "hero.source": "Source code",
+  "hero.meta_offline": "100% offline",
+  "how.eyebrow": "Step-by-step workflow",
+  "how.title": "How it works",
+  "how.lead": "Zero Bluetooth pairing, no GATT connections, and zero network data consumption.",
+  "how.b1_badge": "Once per course · Enrollment",
+  "how.b1_title": "First-day device enrollment",
+  "how.b1_lead": "Before classes begin, each student binds their smartphone to the instructor's local class registry via optical QR scan and cryptographic key exchange.",
+  "role.teacher": "Teacher",
+  "role.student": "Student",
+  "role.auto": "Automatic",
+  "how.s1_title": "Present course QR code",
+  "how.s1_desc": "The teacher displays the course QR code on screen containing the course ID and their X25519 public key.",
+  "how.s2_title": "Scan & enter student ID",
+  "how.s2_desc": "The student scans the QR with their camera, inputs their student ID, and sends a BLE request with an ephemeral X25519 public key.",
+  "how.s3_title": "Review & assign slot",
+  "how.s3_desc": "The instructor verifies the student's name on screen and confirms enrollment slot (0–63). Both derive a shared secret using HKDF-SHA256.",
+  "how.b2_badge": "Every session",
+  "how.b2_title": "Attendance roll-call in seconds",
+  "how.b2_lead": "During routine lectures, the check-in process takes only seconds and gives instant confirmation.",
+  "how.s4_title": "Start session & announce PIN",
+  "how.s4_desc": "The teacher opens the lecture session in the app and announces a temporary 2-digit verbal PIN to present students.",
+  "how.s5_title": "Enter PIN & approach teacher",
+  "how.s5_desc": "The student types the PIN and brings their phone near. The phone broadcasts a BLE beacon with an HMAC-SHA256 tag rotating every 30 seconds.",
+  "how.s6_title": "Proximity detection & echo",
+  "how.s6_desc": "The teacher receives the beacon by proximity (RSSI threshold −75 dBm) and emits a bitmap echo every second. The student sees «¡Presente!» instantly.",
+  "how.invert_note": "Inverted exception list: Did a student leave their phone behind or run out of battery? The teacher marks them present with a single tap on screen to guarantee zero exclusion.",
+  "feat.eyebrow": "Built for universities",
+  "feat.title": "Everything you need to manage attendance",
+  "feat.lead": "Designed to be agile, resilient, and strictly respectful of student and teacher privacy.",
+  "feat.1_title": "Course roster import",
+  "feat.1_desc": "Import student lists directly from Excel spreadsheets (.xlsx) and CSV files, or batch paste names directly from the clipboard.",
+  "feat.2_title": "Optical QR enrollment",
+  "feat.2_desc": "Wireless enrollment using phone camera scan, X25519 elliptic-curve Diffie-Hellman key exchange, and HKDF-SHA256 key derivation.",
+  "feat.3_title": "Bluetooth Low Energy proximity",
+  "feat.3_desc": "Compact 16-byte advertising packets compatible with BLE Legacy standard, requiring no OS-level device pairing.",
+  "feat.4_title": "One-tap inverted list",
+  "feat.4_desc": "Immediate manual check-in for students without smartphones or with depleted batteries. No student is ever left out.",
+  "feat.5_title": "Signed report & 4-sheet Excel",
+  "feat.5_desc": "Local generation of comprehensive Excel workbooks (.xlsx) with Resumen, Detalle, Sesiones, and Metadatos sheets, plus signed minutes.",
+  "feat.6_title": "Optional Google Cloud backup",
+  "feat.6_desc": "Asynchronous voluntary backup to Google Sheets and Google Drive using the instructor's personal or institutional Google account.",
+  "feat.7_title": "Illustrated walkthroughs",
+  "feat.7_desc": "13 custom animated vector scenes, first-run guided onboarding tour, and a contextual help center built into both apps.",
+  "feat.8_title": "Zero internet in class",
+  "feat.8_desc": "100% offline-first operation with local SQLite database storage (schema v4). Never fails when campus Wi-Fi falters.",
+  "tech.eyebrow": "Architecture & Security",
+  "tech.title": "The engineering behind every radio packet",
+  "tech.lead": "Lightweight BLE proximity protocol and standard cryptography tailored for BLE Legacy advertising packets.",
+  "tech.1_title": "Rotating HMAC-SHA256",
+  "tech.1_desc": "Cryptographic presence authentication tag rotating every 30 seconds to prevent replay attacks or remote proxy attendance.",
+  "tech.2_title": "16-byte advertising packets",
+  "tech.2_desc": "Ultracompact beacon packet structure fitting comfortably inside the 31-byte advertising limit of BLE Legacy.",
+  "tech.3_title": "64-position bitmap echo",
+  "tech.3_desc": "The teacher's device broadcasts an 8-byte bitmap advertisement every 1 second to confirm attendance for up to 64 students.",
+  "tech.4_title": "Calibrated −75 dBm RSSI",
+  "tech.4_desc": "Physical proximity verification requiring real short-range physical presence (−75 dBm default; −95 dBm for enrollment).",
+  "tech.5_title": "X25519 & HKDF-SHA256",
+  "tech.5_desc": "Elliptic-curve key exchange binding the shared device secret to the student code and the enrolled course.",
+  "tech.6_title": "Up to 64 students per class",
+  "tech.6_desc": "Optimized room capacity for university lecture halls without radio congestion or excessive battery drain.",
+  "gal.eyebrow": "Production interface",
+  "gal.title": "How it looks on a real phone",
+  "gal.lead": "Designed for one-handed operation, clean visual contrast, and a full dark mode.",
+  "cap.1": "1. Teacher Home",
+  "cap.2": "2. Teacher Live Session",
+  "cap.3": "3. Student: bring phone close",
+  "cap.4": "4. Student home",
+  "cap.5": "5. QR Enrollment",
+  "cap.6": "6. Signed session",
+  "cap.7": "7. Help Center",
+  "cap.8": "8. Teacher Dark Mode",
+  "prv.eyebrow": "Privacy & Data Sovereignty",
+  "prv.title": "Your data stays on your own phone",
+  "prv.lead": "Engineered from the ground up under data minimization and zero telemetry principles.",
+  "prv.1_val": "0",
+  "prv.1_desc": "central servers, forced cloud accounts, or third-party intermediaries.",
+  "prv.2_val": "0",
+  "prv.2_desc": "telemetry trackers, commercial analytics SDKs, or background surveillance.",
+  "prv.3_val": "100%",
+  "prv.3_desc": "local: all rosters and attendance logs reside strictly in local SQLite storage.",
+  "prv.4_val": "Google",
+  "prv.4_desc": "optional: only if the instructor explicitly chooses to sync copies to Google Drive.",
+  "prv.perm_title": "Android Permission Transparency",
+  "prv.p_scan": "Detects attendance beacons in the classroom without querying user geographical location.",
+  "prv.p_adv": "Emits the student attendance beacon or the teacher bitmap echo.",
+  "prv.p_conn": "Interacts with the local Bluetooth adapter on Android 12+ devices.",
+  "prv.p_legacy": "Legacy BLE communication on Android 11 and lower (maxSdkVersion 30).",
+  "prv.p_loc": "Required on Android 11 or lower by OS security policy for BLE scanning. GPS is never activated or collected.",
+  "prv.p_cam": "Used exclusively for real-time optical scanning of the classroom enrollment QR code.",
+  "prv.p_net": "Required solely if the instructor chooses to enable optional Google Sheets and Drive backup.",
+  "prv.law_note": "Designed with Colombia's Statutory Law 1581 of 2012 on personal data protection in mind.",
+  "acad.eyebrow": "Degree Project",
+  "acad.title": "Academic project & pilot study",
+  "acad.project_title": "«Mobile application for serverless Bluetooth proximity attendance tracking in higher education institutions»",
+  "acad.authors_label": "Authors",
+  "acad.director_label": "Project Director",
+  "acad.course_label": "Course Professor (Proyecto I)",
+  "acad.faculty_label": "Program & Faculty",
+  "acad.institution_label": "Institution",
+  "acad.disclaimer": "While the pilot test was conducted within the Systems Engineering program at the Universidad de La Guajira (Riohacha campus), AsistenciaBLE is designed as an open and adaptable solution for any higher education institution. It is not an official university application.",
+  "dl.eyebrow": "Official Release",
+  "dl.title": "AsistenciaBLE 1.0.0",
+  "dl.lead": "Download the APK package for your role directly. Install on your Android device and start taking attendance immediately.",
+  "dl.cta_teacher": "Download Teacher App (APK)",
+  "dl.cta_student": "Download Student App (APK)",
+  "dl.notes": "Release notes",
+  "sp.ver": "Version",
+  "sp.date": "Released",
+  "sp.dateval": "Nov 25, 2026",
+  "sp.size": "Size",
+  "sp.req": "Requires",
+  "sp.lic": "License",
+  "sp.cert": "Signing certificate (SHA-256)",
+  "sp.copy": "Copy fingerprint",
+  "ft.info": "AsistenciaBLE · Developed by Yoner Isaza & Álvaro Garrido · Apache-2.0 License",
+  "ft.rels": "Releases",
+  "ft.changes": "Changelog",
+  "ft.lic": "License",
+  "ft.fonts": "Figtree Font (OFL)"
+};
+
+const nodes = [...document.querySelectorAll("[data-i18n]")];
+const ES = Object.fromEntries(nodes.map(n => [n.dataset.i18n, n.textContent]));
+
+function setLang(lang) {
+  const dict = lang === "en" ? EN : ES;
+  nodes.forEach(n => {
+    const val = dict[n.dataset.i18n];
+    if (val) n.textContent = val;
+  });
+  document.documentElement.lang = lang;
+  document.getElementById("lang-es").setAttribute("aria-pressed", lang === "es");
+  document.getElementById("lang-en").setAttribute("aria-pressed", lang === "en");
+  try {
+    localStorage.setItem("asistenciable-lang", lang);
+  } catch (e) {}
+}
+
+document.getElementById("lang-es").addEventListener("click", () => setLang("es"));
+document.getElementById("lang-en").addEventListener("click", () => setLang("en"));
+
+let savedLang = null;
+try {
+  savedLang = localStorage.getItem("asistenciable-lang");
+} catch (e) {}
+setLang(savedLang || ((navigator.language || "es").toLowerCase().startsWith("es") ? "es" : "en"));
+
+// Tema claro / oscuro
+function setTheme(theme) {
+  if (theme === "dark" || theme === "light") {
+    document.documentElement.setAttribute("data-theme", theme);
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+  try {
+    localStorage.setItem("asistenciable-theme", theme);
+  } catch (e) {}
+}
+
+document.getElementById("theme-btn").addEventListener("click", () => {
+  const current = document.documentElement.getAttribute("data-theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  let next = "dark";
+  if (current === "dark") {
+    next = "light";
+  } else if (current === "light") {
+    next = "dark";
+  } else {
+    next = prefersDark ? "light" : "dark";
+  }
+  setTheme(next);
+});
+
+let savedTheme = null;
+try {
+  savedTheme = localStorage.getItem("asistenciable-theme");
+} catch (e) {}
+if (savedTheme) {
+  setTheme(savedTheme);
+}
+
+// Copiar huella SHA-256
+document.getElementById("copy-btn").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  const code = document.getElementById("sha-cert");
+  const isEn = document.documentElement.lang === "en";
+  const doneMsg = isEn ? "Copied!" : "¡Copiado!";
+  const origMsg = isEn ? "Copy fingerprint" : "Copiar huella";
+  try {
+    await navigator.clipboard.writeText(code.textContent.trim());
+    btn.textContent = doneMsg;
+    setTimeout(() => { btn.textContent = origMsg; }, 2500);
+  } catch (err) {
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(code);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      btn.textContent = doneMsg;
+      setTimeout(() => { btn.textContent = origMsg; }, 2500);
+    } catch (e) {}
+  }
+});
+</script>
+
+</body>
+</html>

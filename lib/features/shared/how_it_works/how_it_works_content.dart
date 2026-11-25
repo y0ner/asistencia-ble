@@ -157,7 +157,7 @@ class HowItWorksContent {
     section: HowSection.once,
     actor: HowActor.other,
     title: 'Cada estudiante escribe su código',
-    body: 'Con la app Asistencia Estudiante escanea el QR y escribe su código estudiantil. Si está en tu lista, entra solo.',
+    body: 'Con la app AsistenciaBLE Estudiante escanea el QR y escribe su código estudiantil. Si está en tu lista, entra solo.',
     tip: 'Tiene que estar en el salón: la confirmación viaja por Bluetooth.',
   );
 

@@ -906,7 +906,7 @@ class _LiveAttendanceSessionScreenState
       );
     }
 
-    final recordedTime = DateTime.tryParse(record.recordedAt);
+    final recordedTime = DateTime.tryParse(record.recordedAt)?.toLocal();
     final timeStr = recordedTime != null ? UiFormat.time(recordedTime) : '';
 
     if (record.method == AppConstants.attendanceMethodBleHmac) {

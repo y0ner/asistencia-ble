@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../core/config/institution_config.dart';
 import '../tokens/ui_colors.dart';
 import '../tokens/ui_metrics.dart';
 import '../tokens/ui_text.dart';
 import 'ui_button.dart';
 
-/// Ruta del escudo institucional empaquetado en la app.
-const String uiBrandEmblemAsset = 'assets/brand/escudo_uniguajira.png';
+/// Ruta del emblema institucional empaquetado en la app.
+String get uiBrandEmblemAsset => InstitutionConfig.current.emblemAsset;
 
 /// Estructura de toda pantalla: encabezado fijo, cuerpo y zona inferior para
 /// la acción principal (al alcance del pulgar).
@@ -53,6 +54,7 @@ class UiBrandHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = UiColors.of(context);
+    final institution = InstitutionConfig.current;
     return Padding(
       padding: const EdgeInsets.fromLTRB(UiSpace.page, 14, UiSpace.page, 10),
       child: Row(
@@ -67,11 +69,11 @@ class UiBrandHeader extends StatelessWidget {
               border: Border.all(color: c.line),
             ),
             child: Image.asset(
-              uiBrandEmblemAsset,
+              institution.emblemAsset,
               width: 24,
               height: 32,
               fit: BoxFit.contain,
-              semanticLabel: 'Escudo de la Universidad de La Guajira',
+              semanticLabel: institution.emblemSemanticLabel,
             ),
           ),
           const SizedBox(width: UiSpace.md),
@@ -79,9 +81,9 @@ class UiBrandHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Asistencia', style: UiText.title.copyWith(color: c.ink)),
+                Text(institution.appName, style: UiText.title.copyWith(color: c.ink)),
                 Text(
-                  'Universidad de La Guajira',
+                  institution.headerSubtitle,
                   style: UiText.caption.copyWith(color: c.muted, fontWeight: FontWeight.w500),
                 ),
               ],
