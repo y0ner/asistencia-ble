@@ -1,0 +1,31 @@
+AsistenciaBLE is a serverless, offline attendance tracking system for higher education institutions. Students register their attendance simply by bringing their smartphone close to the instructor's device using Bluetooth Low Energy (BLE)—without requiring an internet connection during class, without external servers, and with zero infrastructure costs.
+
+BUILT FOR HIGHER EDUCATION
+Designed to eliminate manual roll-call and paper sheets without forcing institutions to integrate complex academic APIs. AsistenciaBLE operates from a single Flutter codebase providing two specialized flavors:
+• AsistenciaBLE Docente (Teacher App)
+• AsistenciaBLE Estudiante (Student App)
+
+HOW IT WORKS
+1. First-Day Enrollment:
+The instructor displays a unique classroom QR code. Students scan the code with their camera, enter their student ID, and send an enrollment request over BLE. Devices perform an X25519 key exchange and derive a private device secret using HKDF-SHA256, permanently binding the student's phone to the course.
+2. In-Class Attendance:
+The instructor starts a session and announces a temporary 2-digit PIN. Students enter the PIN and bring their smartphone within physical proximity (RSSI -75 dBm threshold).
+3. Cryptographic Confirmation:
+The student app emits a rotating HMAC-SHA256 beacon that changes every 30 seconds. The teacher app verifies the packet and updates an 8-byte bitmap (up to 64 students per class), broadcasting a legacy BLE echo every second. The student's screen updates immediately to "¡Presente!" with a green badge—all without central servers or GATT pairing.
+
+KEY FEATURES
+• 100% Offline-First: All session data is stored locally in SQLite on the teacher's phone. No internet connection is needed during lectures.
+• Inverted Exception List: Teachers can manually mark attendance with a single tap for students without a smartphone or with an exhausted battery, guaranteeing zero exclusion.
+• Official Excel Reports: Generates a complete 4-sheet .xlsx workbook (Summary, Detail, Sessions, Metadata) along with a cryptographically signed session minute, ready to share via native apps.
+• Optional Cloud Backup: Instructors can optionally sync course data to Google Sheets and Google Drive using their Google account (supports institutional domain enforcement).
+• Animated Walkthrough & Help Center: 13 animated vector scenes provide intuitive onboarding and contextual troubleshooting for students and teachers.
+• Permission Diagnostics: Built-in verification tool for Bluetooth, Location, and Camera permissions.
+• Flexible Course Ingestion: Import rosters from Excel (.xlsx) and CSV files, paste student lists directly from the clipboard, or add students manually.
+
+PRIVACY & SECURITY
+• Serverless & Zero Telemetry: No external tracking, no analytics, no third-party servers.
+• Proximity Verification: Cryptographic rotating tokens and RSSI thresholds prevent remote attendance fraud and proxy check-ins.
+• Minimal Permissions: Bluetooth LE for device proximity; Location only requested on Android 11 and lower as mandated by the OS for BLE scanning (never used for GPS or location tracking); Camera used strictly for optical QR enrollment; Internet used solely for optional Google Drive backup.
+
+ACADEMIC PROJECT
+Developed as an undergraduate degree project titled "Aplicación móvil para el registro de asistencia por proximidad Bluetooth sin servidor en instituciones de educación superior" by Yoner De Jesús Isaza Vides and Álvaro Luis Garrido Medina, advised by Miguel Humberto Romero Acuña and Lisseth Paola Castañeda Vega, at Universidad de La Guajira (Riohacha, 2026). Tested in a pilot program with the Systems Engineering department and adaptable to any university or college.
