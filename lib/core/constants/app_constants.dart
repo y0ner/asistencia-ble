@@ -1,15 +1,8 @@
-/// Constantes globales del dominio de asistencia de Uniguajira.
+/// Constantes globales del protocolo y dominio de AsistenciaBLE.
 ///
 /// Centraliza los parámetros del protocolo (ventana HMAC, tamaño del Bitmap,
-/// umbral de proximidad y dominio institucional) para que ninguna capa
-/// introduzca valores mágicos.
+/// umbral de proximidad) para que ninguna capa introduzca valores mágicos.
 abstract final class AppConstants {
-  /// Nombre visible de la aplicación.
-  static const String appName = 'Asistencia Uniguajira';
-
-  /// Dominio institucional autorizado para la sincronización con Google.
-  static const String institutionalDomain = '@uniguajira.edu.co';
-
   /// Ventana de rotación de la etiqueta HMAC-SHA256, en segundos.
   static const int hmacRotationSeconds = 30;
 
