@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:excel/excel.dart';
 import 'package:path/path.dart' as p;
 
+import '../../core/config/institution_config.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/models/attendance_record_model.dart';
 import '../../core/models/course_model.dart';
@@ -46,6 +47,10 @@ class StudentAttendanceMetric {
     required this.totalAbsences,
     required this.attendancePercentage,
     required this.alertStatus,
+    this.origin = AppConstants.studentOriginRoster,
+    this.deviceBoundAt,
+    this.studentStatus = AppConstants.studentStatusActive,
+    this.retiredAt,
   });
 
   /// Identificador local del estudiante.
@@ -84,6 +89,18 @@ class StudentAttendanceMetric {
   /// Uno de los valores de [AttendanceAlertStatus].
   final String alertStatus;
 
+  /// Origen del estudiante (`roster` o `added_in_class`).
+  final String origin;
+
+  /// Fecha en la que se vinculó el celular (ISO 8601 o nula).
+  final String? deviceBoundAt;
+
+  /// Estado de matrícula (`active` o `retired`).
+  final String studentStatus;
+
+  /// Fecha en la que fue retirado de la clase (ISO 8601 o nula).
+  final String? retiredAt;
+
   /// Alias de [totalSessions].
   int get totalClosedSessions => totalSessions;
 
@@ -101,6 +118,15 @@ class StudentAttendanceMetric {
 
   /// Alias corto del estado de alerta.
   String get status => alertStatus;
+
+  /// Indica si el estudiante está en estado activo en el curso.
+  bool get isActive => studentStatus == AppConstants.studentStatusActive;
+
+  /// Indica si el estudiante fue retirado del curso.
+  bool get isRetired => studentStatus == AppConstants.studentStatusRetired;
+
+  /// Indica si el estudiante fue agregado durante la clase.
+  bool get wasAddedInClass => origin == AppConstants.studentOriginAddedInClass;
 
   /// Indica si el estudiante está en el rango normal.
   bool get isNormal => alertStatus == AttendanceAlertStatus.normal;
@@ -128,6 +154,10 @@ class StudentAttendanceMetric {
       'totalAbsences': totalAbsences,
       'attendancePercentage': attendancePercentage,
       'alertStatus': alertStatus,
+      'origin': origin,
+      'deviceBoundAt': deviceBoundAt,
+      'studentStatus': studentStatus,
+      'retiredAt': retiredAt,
     };
   }
 }
@@ -198,11 +228,14 @@ class CourseAttendanceSummary {
   /// Alias de [students].
   List<StudentAttendanceMetric> get metrics => students;
 
-  /// Cantidad de estudiantes matriculados.
-  int get totalStudents => students.length;
+  /// Cantidad de estudiantes matriculados activos.
+  int get totalStudents => students.where((s) => s.isActive).length;
 
   /// Alias de [totalStudents].
-  int get totalEnrolled => students.length;
+  int get totalEnrolled => totalStudents;
+
+  /// Cantidad de estudiantes retirados de la clase.
+  int get totalRetiredStudents => students.where((s) => s.isRetired).length;
 
   /// Alias de [totalClosedSessions].
   int get totalSessionsClosed => totalClosedSessions;
@@ -222,7 +255,8 @@ class CourseAttendanceSummary {
       'groupCode': course.groupCode,
       'semester': course.semester,
       'teacherEmail': teacherEmail,
-      'totalStudents': students.length,
+      'totalStudents': totalStudents,
+      'totalRetiredStudents': totalRetiredStudents,
       'totalSessions': totalSessions,
       'totalClosedSessions': totalClosedSessions,
       'totalSignedActas': totalSignedActas,
@@ -242,23 +276,31 @@ class CourseAttendanceSummary {
   }
 }
 
-/// Genera el libro oficial de asistencia de la Universidad de La Guajira.
+/// Genera el libro oficial de asistencia de AsistenciaBLE.
 ///
 /// El reporte se construye desde SQLite y contiene exactamente cuatro hojas:
 /// `Resumen`, `Detalle`, `Sesiones` y `Metadatos`.
 class ExcelReportService {
-  ExcelReportService({AppDatabase? database, String teacherEmail = ''})
-    : _database = database ?? AppDatabase.instance,
-      _teacherEmail = teacherEmail.trim();
+  ExcelReportService({
+    AppDatabase? database,
+    String teacherEmail = '',
+    InstitutionProfile? institution,
+  }) : _database = database ?? AppDatabase.instance,
+       _teacherEmail = teacherEmail.trim(),
+       _institution = institution ?? InstitutionConfig.current;
 
   final AppDatabase _database;
   final String _teacherEmail;
+  final InstitutionProfile _institution;
 
   /// Base de datos utilizada por el generador.
   AppDatabase get database => _database;
 
   /// Correo docente incluido en la hoja de metadatos.
   String get teacherEmail => _teacherEmail;
+
+  /// Perfil institucional utilizado en el reporte.
+  InstitutionProfile get institution => _institution;
 
   /// Construye y codifica el libro `.xlsx` oficial de un curso.
   Future<Uint8List> generateCourseAttendanceWorkbook(String courseId) async {
@@ -330,9 +372,7 @@ class ExcelReportService {
     final directory = Directory(normalizedDirectory);
     await directory.create(recursive: true);
 
-    final courseCode = _sanitizeFileSegment(summary.course.code);
-    final groupCode = _sanitizeFileSegment(summary.course.groupCode);
-    final fileName = 'Asistencia_Uniguajira_${courseCode}_$groupCode.xlsx';
+    final fileName = exportFileNameFor(summary.course);
     final file = File(p.join(directory.absolute.path, fileName));
     await file.writeAsBytes(bytes, flush: true);
     return file.absolute.path;
@@ -354,12 +394,13 @@ class ExcelReportService {
       throw StateError('No existe el curso $normalizedCourseId.');
     }
 
-    final students =
-        List<StudentModel>.of(await _database.getStudentsByCourse(course.id))
-          ..sort(
-            (StudentModel left, StudentModel right) =>
-                left.bitIndex.compareTo(right.bitIndex),
-          );
+    final allStudents = await _database.getAllStudentsByCourse(course.id);
+    final activeStudents = allStudents.where((s) => s.isActive).toList()
+      ..sort((a, b) => a.bitIndex.compareTo(b.bitIndex));
+    final retiredStudents = allStudents.where((s) => !s.isActive).toList()
+      ..sort((a, b) => a.bitIndex.compareTo(b.bitIndex));
+    final students = <StudentModel>[...activeStudents, ...retiredStudents];
+
     final sessions = List<SessionModel>.of(
       await _database.getSessionsByCourse(course.id),
     )..sort(_compareSessionsChronologically);
@@ -388,7 +429,7 @@ class ExcelReportService {
           records: records,
           acta: acta,
           signature: signature,
-          totalEnrolled: students.length,
+          totalEnrolled: activeStudents.length,
         ),
       );
     }
@@ -409,7 +450,11 @@ class ExcelReportService {
       var manualAttendances = 0;
       var totalAttendances = 0;
 
-      for (final _SessionSnapshot snapshot in closedSnapshots) {
+      final studentClosedSnapshots = closedSnapshots
+          .where((s) => _sessionCountsForStudent(s, student))
+          .toList(growable: false);
+
+      for (final _SessionSnapshot snapshot in studentClosedSnapshots) {
         final record = snapshot.recordsByStudentId[student.id];
         if (record == null) {
           continue;
@@ -422,13 +467,14 @@ class ExcelReportService {
         }
       }
 
-      final totalAbsences = closedSnapshots.length - totalAttendances;
-      final attendancePercentage = closedSnapshots.isEmpty
+      final studentSessionCount = studentClosedSnapshots.length;
+      final totalAbsences = studentSessionCount - totalAttendances;
+      final attendancePercentage = studentSessionCount == 0
           ? 100.0
-          : _round2(totalAttendances / closedSnapshots.length * 100.0);
-      final absencePercentage = closedSnapshots.isEmpty
+          : _round2(totalAttendances / studentSessionCount * 100.0);
+      final absencePercentage = studentSessionCount == 0
           ? 0.0
-          : 100.0 - (totalAttendances / closedSnapshots.length * 100.0);
+          : 100.0 - (totalAttendances / studentSessionCount * 100.0);
 
       metrics.add(
         StudentAttendanceMetric(
@@ -437,13 +483,17 @@ class ExcelReportService {
           studentCode: student.studentCode,
           fullName: student.fullName,
           email: student.email,
-          totalSessions: closedSnapshots.length,
+          totalSessions: studentSessionCount,
           bleAttendances: bleAttendances,
           manualAttendances: manualAttendances,
           totalAttendances: totalAttendances,
           totalAbsences: totalAbsences,
           attendancePercentage: attendancePercentage,
-          alertStatus: _alertStatusForAbsence(absencePercentage),
+          alertStatus: !student.isActive ? '—' : _alertStatusForAbsence(absencePercentage),
+          origin: student.origin,
+          deviceBoundAt: student.deviceBoundAt,
+          studentStatus: student.status,
+          retiredAt: student.retiredAt,
         ),
       );
     }
@@ -461,6 +511,9 @@ class ExcelReportService {
         'TotalInasistencias',
         'PorcentajeAsistencia',
         'EstadoAlerta',
+        'Origen',
+        'Celular vinculado desde',
+        'Estado',
       ],
       for (final StudentAttendanceMetric metric in metrics)
         <Object?>[
@@ -474,7 +527,14 @@ class ExcelReportService {
           metric.totalAttendances,
           metric.totalAbsences,
           metric.attendancePercentage,
-          metric.alertStatus,
+          metric.isRetired ? '—' : metric.alertStatus,
+          metric.wasAddedInClass ? 'Agregado en clase' : 'Lista',
+          _formatLocalDate(metric.deviceBoundAt),
+          metric.isRetired
+              ? (_formatLocalDate(metric.retiredAt).isNotEmpty
+                  ? 'Retirado el ${_formatLocalDate(metric.retiredAt)}'
+                  : 'Retirado')
+              : 'Activo',
         ],
     ];
 
@@ -501,21 +561,30 @@ class ExcelReportService {
       if (snapshot.isClosed) {
         for (final StudentModel student in students) {
           final record = snapshot.recordsByStudentId[student.id];
+          final counts = _sessionCountsForStudent(snapshot, student);
           final present = record != null;
+
+          final String estadoAsistencia;
+          if (!counts) {
+            estadoAsistencia = '—';
+          } else if (present) {
+            estadoAsistencia = AppConstants.attendanceStatusPresent;
+          } else {
+            estadoAsistencia = AppConstants.attendanceStatusAbsent;
+          }
+
           detailRows.add(<Object?>[
             snapshot.session.id,
-            snapshot.session.startedAt,
-            snapshot.closedAtIso,
+            _formatLocalSessionDate(snapshot.session.startedAt),
+            _formatLocalSessionDate(snapshot.closedAtIso),
             student.bitIndex,
             student.studentCode,
             student.fullName,
-            present
-                ? AppConstants.attendanceStatusPresent
-                : AppConstants.attendanceStatusAbsent,
-            record?.method ?? '',
-            record?.rssiAvg ?? '',
-            record?.timeTick ?? '',
-            record?.observation ?? '',
+            estadoAsistencia,
+            counts ? (record?.method ?? '') : '',
+            counts ? (record?.rssiAvg ?? '') : '',
+            counts ? (record?.timeTick ?? '') : '',
+            counts ? (record?.observation ?? '') : '',
           ]);
         }
         continue;
@@ -531,7 +600,7 @@ class ExcelReportService {
         }
         detailRows.add(<Object?>[
           snapshot.session.id,
-          snapshot.session.startedAt,
+          _formatLocalSessionDate(snapshot.session.startedAt),
           '',
           student.bitIndex,
           student.studentCode,
@@ -563,8 +632,8 @@ class ExcelReportService {
         <Object?>[
           snapshot.session.id,
           snapshot.session.courseId,
-          snapshot.session.startedAt,
-          snapshot.closedAtIso,
+          _formatLocalSessionDate(snapshot.session.startedAt),
+          _formatLocalSessionDate(snapshot.closedAtIso),
           snapshot.isClosed ? 'CERRADA' : 'ABIERTA',
           snapshot.session.roomPin,
           snapshot.bitmapHex,
@@ -577,10 +646,10 @@ class ExcelReportService {
 
     final metadataRows = <List<Object?>>[
       <Object?>['Clave', 'Valor'],
-      <Object?>['Institucion', 'Universidad de La Guajira'],
+      <Object?>['Institucion', _institution.institutionName],
       <Object?>[
         'Sistema',
-        'Asistencia Multimodal Uniguajira (BLE + Mapa de Bits 8B)',
+        'AsistenciaBLE (BLE + Mapa de Bits 8B)',
       ],
       <Object?>['CursoID', course.id],
       <Object?>['CodigoCurso', course.code],
@@ -588,11 +657,13 @@ class ExcelReportService {
       <Object?>['Grupo', course.groupCode],
       <Object?>['Semestre', course.semester],
       <Object?>['DocenteEmail', _teacherEmail],
-      <Object?>['TotalEstudiantesMatriculados', students.length],
+      <Object?>['TotalEstudiantesMatriculados', activeStudents.length],
+      <Object?>['TotalEstudiantesRetirados', retiredStudents.length],
       <Object?>['CupoMaximoBitmap', AppConstants.bitmapBitCount],
       <Object?>['TotalSesionesCerradas', closedSnapshots.length],
       <Object?>['TotalActasFirmadas', signatures.length],
       <Object?>['FechaGeneracionISO8601', generatedAtIso],
+      <Object?>['FechaGeneracionLocal', _formatLocalSessionDate(generatedAtIso)],
       <Object?>['HuellaIntegridadReporteHmacSha256', reportHmacSha256],
     ];
 
@@ -670,6 +741,85 @@ class ExcelReportService {
       return BoolCellValue(value);
     }
     return TextCellValue(value?.toString() ?? '');
+  }
+
+  /// Nombre del archivo Excel que [exportWorkbookToFile] genera para [course].
+  ///
+  /// Combina código de curso, grupo, semestre y los primeros 6 caracteres del
+  /// identificador único de la clase para evitar colisiones entre periodos.
+  static String exportFileNameFor(CourseModel course) {
+    final courseCode = _sanitizeFileSegment(course.code);
+    final groupCode = _sanitizeFileSegment(course.groupCode);
+    final semester = _sanitizeFileSegment(course.semester);
+    final idRaw = course.id.length >= 6 ? course.id.substring(0, 6) : course.id;
+    final id6 = _sanitizeFileSegment(idRaw);
+    return 'AsistenciaBLE_${courseCode}_${groupCode}_${semester}_$id6.xlsx';
+  }
+
+  static String _formatLocalSessionDate(String? raw) {
+    if (raw == null) return '';
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+    final dt = DateTime.tryParse(trimmed);
+    if (dt == null) return raw;
+    final local = dt.toLocal();
+    final y = local.year.toString().padLeft(4, '0');
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    final h = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $h:$min';
+  }
+
+  static String _formatLocalDate(String? isoString) {
+    if (isoString == null || isoString.trim().isEmpty) {
+      return '';
+    }
+    final dateTime = DateTime.tryParse(isoString);
+    if (dateTime == null) {
+      return '';
+    }
+    final local = dateTime.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final year = local.year.toString().padLeft(4, '0');
+    return '$day/$month/$year';
+  }
+
+  static bool _sessionCountsForStudent(
+    _SessionSnapshot snapshot,
+    StudentModel student,
+  ) {
+    final records = snapshot.acta?['records'];
+    if (records is List) {
+      final studentCode = student.studentCode.trim();
+      for (final r in records) {
+        if (r is Map) {
+          final code =
+              (r['studentCode'] ?? r['student_code'])?.toString().trim();
+          if (code != null && code == studentCode) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    if (snapshot.recordsByStudentId.containsKey(student.id)) {
+      return true;
+    }
+
+    final enrolledAt = student.enrolledAt;
+    if (enrolledAt == null || enrolledAt.trim().isEmpty) {
+      return true;
+    }
+
+    final enrolledDate = DateTime.tryParse(enrolledAt);
+    final startedDate = DateTime.tryParse(snapshot.session.startedAt);
+    if (enrolledDate != null && startedDate != null) {
+      return !enrolledDate.isAfter(startedDate);
+    }
+    return enrolledAt.compareTo(snapshot.session.startedAt) <= 0;
   }
 
   static String _sanitizeFileSegment(String value) {

@@ -1,35 +1,38 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/models/course_model.dart';
 import '../../core/models/session_model.dart';
 import '../../core/models/student_model.dart';
 import '../../data/local/app_database.dart';
+import '../../data/services/course_overview_service.dart';
 import '../../data/services/roster_import_service.dart';
-import '../../theme/theme.dart';
+import '../../data/services/student_admin_service.dart';
+import '../../ui/ui.dart';
 import 'course_reports_screen.dart';
+import 'enrollment_host_screen.dart';
 import 'live_attendance_session_screen.dart';
 import 'roster_import_modal.dart';
 import 'signed_acta_dialog.dart';
 
-/// Detalle del curso seleccionado por el docente:
-/// - Muestra la capacidad del Bitmap de 64 bits.
-/// - Ingesta masiva o manual de estudiantes.
-/// - Roster de estudiantes ordenados por Bit Index con credenciales QR.
-/// - Historial de sesiones registradas en SQLite y visualización de actas firmadas.
-/// - Conexión directa a la Sesión de Asistencia BLE en Vivo.
+/// Detalle de la clase seleccionada por el docente:
+/// - Hero card para tomar asistencia o volver a la sesión activa.
+/// - Banner informativo cuando no hay estudiantes en la clase.
+/// - Métricas consolidadas (sesiones, asistencia, en riesgo) con acceso a Reportes.
+/// - Historial de últimas sesiones con navegación al acta firmada o sesión en vivo.
+/// - Acceso directo a la gestión de estudiantes y exportación del Excel oficial.
 class CourseDetailScreen extends StatefulWidget {
   const CourseDetailScreen({
     super.key,
     required this.course,
     this.database,
     this.rosterService,
+    this.overviewService,
   });
 
   final CourseModel course;
   final AppDatabase? database;
   final RosterImportService? rosterService;
+  final CourseOverviewService? overviewService;
 
   @override
   State<CourseDetailScreen> createState() => _CourseDetailScreenState();
@@ -38,44 +41,46 @@ class CourseDetailScreen extends StatefulWidget {
 class _CourseDetailScreenState extends State<CourseDetailScreen> {
   late final AppDatabase _database;
   late final RosterImportService _rosterService;
+  late final CourseOverviewService _overviewService;
 
   bool _isLoading = true;
-  List<StudentModel> _students = <StudentModel>[];
-  List<SessionModel> _sessions = <SessionModel>[];
+  CourseOverview? _overview;
 
   @override
   void initState() {
     super.initState();
     _database = widget.database ?? AppDatabase.instance;
     _rosterService = widget.rosterService ?? RosterImportService();
+    _overviewService = widget.overviewService ??
+        CourseOverviewService(database: _database);
     _loadData();
   }
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final list = await _database.getStudentsByCourse(widget.course.id);
-      final sessionList =
-          await _database.getSessionsByCourse(widget.course.id);
+      final overview = await _overviewService.load(widget.course.id);
       if (mounted) {
         setState(() {
-          _students = list;
-          _sessions = sessionList;
+          _overview = overview;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        final colors = AppColors.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar datos del curso: $e'),
-            backgroundColor: colors.statusPerdida,
-          ),
-        );
+        showUiSnack(context, 'No se pudieron cargar los datos de la clase.');
       }
     }
+  }
+
+  Future<void> _openEnrollment() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => EnrollmentHostScreen(course: widget.course, database: _database),
+      ),
+    );
+    if (mounted) await _loadData();
   }
 
   Future<void> _openImportModal() async {
@@ -85,133 +90,8 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     }
   }
 
-  void _showStudentQrDialog(StudentModel student) {
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-
-    final payload = _rosterService.generateEnrollmentQrPayload(
-      course: widget.course,
-      student: student,
-    );
-
-    showDialog<void>(
-      context: context,
-      builder: (BuildContext ctx) {
-        final theme = Theme.of(ctx);
-        final bitPadded = student.bitIndex.toString().padLeft(2, '0');
-
-        return AlertDialog(
-          shape: radii.dialogShape(),
-          title: Row(
-            children: <Widget>[
-              Icon(Icons.qr_code_2, color: colors.primary, size: 28),
-              SizedBox(width: spacing.xs),
-              const Expanded(
-                child: Text(
-                  'Credencial de Enrolamiento',
-                  style: TextStyle(fontSize: 18),
-                ),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Container(
-                  padding: spacing.symmetric(
-                    horizontal: spacing.sm,
-                    vertical: spacing.xxs + 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.primaryContainer,
-                    borderRadius: radii.borderPill,
-                  ),
-                  child: Text(
-                    'Bit #$bitPadded en el Bitmap',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: colors.onPrimaryContainer,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                SizedBox(height: spacing.sm),
-                Text(
-                  student.fullName,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colors.onSurface,
-                  ),
-                ),
-                SizedBox(height: spacing.xxs),
-                Text(
-                  'Código: ${student.studentCode}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colors.onSurfaceMuted,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                if (student.email != null) ...<Widget>[
-                  SizedBox(height: spacing.xxs / 2),
-                  Text(
-                    student.email!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceMuted,
-                    ),
-                  ),
-                ],
-                SizedBox(height: spacing.md),
-                Container(
-                  padding: spacing.insetsSm,
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainer,
-                    borderRadius: radii.borderLg,
-                    border: Border.all(
-                      color: colors.outlineVariant,
-                    ),
-                  ),
-                  child: QrImageView(
-                    data: payload,
-                    version: QrVersions.auto,
-                    size: 200.0,
-                    eyeStyle: QrEyeStyle(
-                      eyeShape: QrEyeShape.square,
-                      color: colors.onSurface,
-                    ),
-                    dataModuleStyle: QrDataModuleStyle(
-                      dataModuleShape: QrDataModuleShape.square,
-                      color: colors.onSurface,
-                    ),
-                  ),
-                ),
-                SizedBox(height: spacing.sm),
-                Text(
-                  'Pide al estudiante escanear este código desde el "Modo Estudiante" '
-                  'para guardar su secreto HMAC único en su teléfono.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cerrar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Future<void> _onStartBleSession() async {
-    final result = await Navigator.of(context).push<bool>(
+    await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (BuildContext context) => LiveAttendanceSessionScreen(
           course: widget.course,
@@ -219,23 +99,101 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
         ),
       ),
     );
-    if (!mounted) return;
-    if (result == true) {
+    if (mounted) {
       await _loadData();
     }
   }
 
-  Future<void> _openReportsScreen() async {
+  Future<void> _openReportsScreen({bool exportOnOpen = false}) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (BuildContext context) => CourseReportsScreen(
           course: widget.course,
           database: _database,
+          exportOnOpen: exportOnOpen,
         ),
       ),
     );
     if (mounted) {
       await _loadData();
+    }
+  }
+
+  Future<void> _openStudentsScreen() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => _CourseStudentsScreen(
+          course: widget.course,
+          database: _database,
+          rosterService: _rosterService,
+        ),
+      ),
+    );
+    if (mounted) {
+      await _loadData();
+    }
+  }
+
+  Future<void> _showCourseOptionsSheet() async {
+    await showUiSheet<void>(
+      context,
+      builder: (sheetContext) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: UiSpace.sm),
+            UiNavRow(
+              title: 'Inscribir estudiantes',
+              subtitle: 'Un solo QR para toda la clase',
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _openEnrollment();
+              },
+            ),
+            UiNavRow(
+              title: 'Agregar a la lista',
+              subtitle: 'Pegar, desde un archivo o uno por uno',
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _openImportModal();
+              },
+            ),
+            UiNavRow(
+              title: 'Eliminar clase',
+              destructive: true,
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _confirmDeleteCourse();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDeleteCourse() async {
+    final confirmed = await showUiConfirm(
+      context,
+      destructive: true,
+      title: '¿Eliminar esta clase?',
+      message:
+          'Se borran sus estudiantes y sus sesiones. No se puede deshacer.',
+      confirmLabel: 'Eliminar',
+    );
+
+    if (confirmed == true) {
+      try {
+        await _database.deleteCourse(widget.course.id);
+        if (mounted) {
+          Navigator.of(context).pop(true);
+        }
+      } catch (e) {
+        if (mounted) {
+          showUiSnack(context, 'No se pudo eliminar la clase.');
+        }
+      }
     }
   }
 
@@ -250,671 +208,580 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
           courseSecretHex: widget.course.courseSecret,
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se encontró el acta guardada para esta sesión.'),
-          ),
-        );
+        showUiSnack(context, 'No se encontró el acta guardada para esta sesión.');
       }
     } catch (e) {
       if (!mounted) return;
-      final colors = AppColors.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al consultar el acta: $e'),
-          backgroundColor: colors.statusPerdida,
-        ),
-      );
+      showUiSnack(context, 'No se pudo abrir el acta de la sesión.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    final count = _students.length;
-    final maxBits = AppConstants.bitmapBitCount;
-    final fraction = count / maxBits;
+    final c = UiColors.of(context);
+    final overview = _overview;
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.course.name),
-          actions: <Widget>[
-            IconButton(
-              icon: const Icon(Icons.assessment_outlined),
-              tooltip: 'Reportes y Excel (.xlsx)',
-              onPressed: _openReportsScreen,
-            ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Actualizar datos',
-              onPressed: _loadData,
-            ),
-          ],
-          bottom: TabBar(
-            indicatorColor: colors.primary,
-            labelColor: colors.primary,
-            unselectedLabelColor: colors.onSurfaceMuted,
-            tabs: <Widget>[
-              Tab(
-                icon: const Icon(Icons.people_outline),
-                text: 'Roster ($count)',
-              ),
-              Tab(
-                icon: const Icon(Icons.history),
-                text: 'Historial de Sesiones (${_sessions.length})',
-              ),
-            ],
+    final Widget body;
+    if (_isLoading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (overview == null) {
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(UiSpace.page),
+          child: UiBanner(
+            tone: UiBannerTone.error,
+            message: 'No se pudieron cargar los datos de la clase.',
+            actionLabel: 'Reintentar',
+            onAction: _loadData,
           ),
         ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : TabBarView(
-                children: <Widget>[
-                  // Pestaña 1: Roster de Estudiantes e Ingesta
-                  _buildRosterTab(count, maxBits, fraction),
+      );
+    } else {
+      final hasStudents = overview.hasStudents;
+      final hasOpenSession = overview.openSession != null;
 
-                  // Pestaña 2: Historial de Sesiones SQLite
-                  _buildSessionsHistoryTab(),
-                ],
+      body = RefreshIndicator(
+        onRefresh: _loadData,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: UiSpace.xl),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                UiSpace.page,
+                UiSpace.sm,
+                UiSpace.page,
+                0,
               ),
-        bottomNavigationBar: _buildBottomBleBar(),
-      ),
-    );
-  }
-
-  Widget _buildRosterTab(
-    int count,
-    int maxBits,
-    double fraction,
-  ) {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-
-    return Column(
-      children: <Widget>[
-        // Tarjeta de cabecera: Datos del curso y capacidad de Bitmap
-        _buildCourseHeaderCard(count, maxBits, fraction),
-
-        // Botonera de acciones: Cargar Estudiantes y Reportes/Excel (.xlsx)
-        Padding(
-          padding: spacing.only(
-            left: spacing.md,
-            right: spacing.md,
-            bottom: spacing.xs,
-          ),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                flex: 3,
-                child: FilledButton.icon(
-                  onPressed: count >= maxBits ? null : _openImportModal,
-                  icon: const Icon(Icons.group_add_outlined),
-                  label: Text(
-                    count >= maxBits
-                        ? 'Capacidad (64/64)'
-                        : 'Cargar Estudiantes',
-                  ),
-                  style: FilledButton.styleFrom(
-                    padding: spacing.symmetric(vertical: spacing.sm),
-                    shape: radii.buttonShape(),
-                  ),
-                ),
-              ),
-              SizedBox(width: spacing.xs),
-              Expanded(
-                flex: 2,
-                child: OutlinedButton.icon(
-                  onPressed: _openReportsScreen,
-                  icon: const Icon(Icons.assessment_outlined),
-                  label: const Text('Reportes'),
-                  style: OutlinedButton.styleFrom(
-                    padding: spacing.symmetric(vertical: spacing.sm),
-                    shape: radii.buttonShape(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Encabezado de la lista
-        Padding(
-          padding: spacing.symmetric(
-            horizontal: spacing.md,
-            vertical: spacing.xs,
-          ),
-          child: Row(
-            children: <Widget>[
-              Text(
-                'Roster de Estudiantes ($count)',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colors.onSurface,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                'Ordenado por Bit Index',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Listado de estudiantes
-        Expanded(
-          child: _students.isEmpty
-              ? _buildEmptyRosterView()
-              : RefreshIndicator(
-                  onRefresh: _loadData,
-                  child: ListView.separated(
-                    padding: spacing.symmetric(
-                      horizontal: spacing.md,
-                      vertical: spacing.xxs,
-                    ),
-                    itemCount: _students.length,
-                    separatorBuilder: (_, _) => SizedBox(height: spacing.xs),
-                    itemBuilder: (BuildContext context, int index) {
-                      final student = _students[index];
-                      return _buildStudentTile(student);
-                    },
-                  ),
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSessionsHistoryTab() {
-    final spacing = AppSpacing.of(context);
-
-    if (_sessions.isEmpty) {
-      return _buildEmptySessionsView();
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: ListView.separated(
-        padding: spacing.insetsCard,
-        itemCount: _sessions.length,
-        separatorBuilder: (_, _) => SizedBox(height: spacing.sm),
-        itemBuilder: (BuildContext context, int index) {
-          final session = _sessions[index];
-          return _buildSessionCard(session);
-        },
-      ),
-    );
-  }
-
-  Widget _buildSessionCard(SessionModel session) {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-
-    final isClosed = session.closedAt != null;
-    final dateDisplay = session.startedAt.replaceAll('T', ' ').split('.').first;
-
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: radii.cardShape(
-        side: BorderSide(
-          color: isClosed
-              ? colors.statusNormal.withValues(alpha: 0.5)
-              : colors.outlineVariant,
-        ),
-      ),
-      child: Padding(
-        padding: spacing.insetsCard,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Container(
-                  padding: spacing.symmetric(
-                    horizontal: spacing.xs,
-                    vertical: spacing.xxs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isClosed
-                        ? colors.statusNormalContainer
-                        : colors.bleAccentContainer,
-                    borderRadius: radii.borderXs,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        isClosed ? Icons.verified : Icons.timelapse,
-                        size: 14,
-                        color: isClosed
-                            ? colors.onStatusNormalContainer
-                            : colors.onBleAccentContainer,
+              child: hasStudents
+                  ? UiHeroCard(
+                      onTap: _onStartBleSession,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  hasOpenSession
+                                      ? 'Volver a la sesión'
+                                      : 'Tomar asistencia',
+                                  style: UiText.h2.copyWith(color: c.onPrimary),
+                                ),
+                                const SizedBox(height: UiSpace.xs),
+                                Text(
+                                  '${UiFormat.count(overview.studentCount, 'estudiante', 'estudiantes')}'
+                                  ' · ${overview.boundCount} con celular vinculado',
+                                  style: UiText.label.copyWith(color: c.onPrimary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: UiSpace.md),
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: c.onPrimary,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              Icons.arrow_forward_rounded,
+                              color: c.primary,
+                              size: 20,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(width: spacing.xxs),
-                      Text(
-                        isClosed ? 'CERRADA Y FIRMADA' : 'SESIÓN ABIERTA',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: isClosed
-                              ? colors.onStatusNormalContainer
-                              : colors.onBleAccentContainer,
+                    )
+                  : UiBanner(
+                      tone: UiBannerTone.info,
+                      message:
+                          'Inscribe a tus estudiantes con el código de la clase. Puedes empezar aunque no tengas la lista.',
+                      actionLabel: 'Inscribir estudiantes',
+                      onAction: _openEnrollment,
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                UiSpace.page,
+                UiSpace.md,
+                UiSpace.page,
+                0,
+              ),
+              child: Semantics(
+                button: true,
+                label: 'Ver reportes',
+                child: InkWell(
+                  onTap: () => _openReportsScreen(),
+                  borderRadius: BorderRadius.circular(18),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: UiStatTile(
+                          value: '${overview.closedSessionCount}',
+                          label: 'sesiones',
+                        ),
+                      ),
+                      const SizedBox(width: UiSpace.sm),
+                      Expanded(
+                        child: UiStatTile(
+                          value: overview.attendancePercent != null
+                              ? '${overview.attendancePercent!.round()} %'
+                              : '—',
+                          label: 'asistencia',
+                        ),
+                      ),
+                      const SizedBox(width: UiSpace.sm),
+                      Expanded(
+                        child: UiStatTile(
+                          value: '${overview.atRiskCount}',
+                          label: 'en riesgo',
+                          tone: overview.atRiskCount > 0 ? UiTone.absent : null,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Spacer(),
-                Container(
-                  padding: spacing.symmetric(
-                    horizontal: spacing.xs,
-                    vertical: spacing.xxs / 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.primaryContainer,
-                    borderRadius: radii.borderXs,
-                  ),
-                  child: Text(
-                    'PIN: ${session.roomPin}',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: colors.onPrimaryContainer,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-            SizedBox(height: spacing.xs + 2),
-            Row(
-              children: <Widget>[
-                Icon(
-                  Icons.calendar_today_outlined,
-                  size: 14,
-                  color: colors.onSurfaceMuted,
-                ),
-                SizedBox(width: spacing.xxs + 2),
-                Text(
-                  'Inicio: $dateDisplay',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: colors.onSurface,
-                  ),
-                ),
-              ],
-            ),
-            if (session.closedAt != null) ...<Widget>[
-              SizedBox(height: spacing.xxs),
-              Row(
-                children: <Widget>[
-                  Icon(
-                    Icons.lock_clock_outlined,
-                    size: 14,
-                    color: colors.onSurfaceMuted,
-                  ),
-                  SizedBox(width: spacing.xxs + 2),
-                  Text(
-                    'Cierre: ${session.closedAt!.replaceAll('T', ' ').split('.').first}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceMuted,
+            const UiSectionTitle('Últimas sesiones'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: UiSpace.page),
+              child: overview.recentSessions.isEmpty
+                  ? Text(
+                      'Aún no has tomado asistencia en esta clase.',
+                      style: UiText.body.copyWith(color: c.muted),
+                    )
+                  : UiListGroup(
+                      children: [
+                        for (final row in overview.recentSessions)
+                          UiNavRow(
+                            title: UiFormat.longDate(
+                              DateTime.tryParse(row.session.startedAt)
+                                      ?.toLocal() ??
+                                  DateTime.now(),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${row.presentCount} de ${row.totalStudents}',
+                                  style: UiText.label.copyWith(color: c.muted),
+                                ),
+                                const SizedBox(width: UiSpace.sm),
+                                if (row.isOpen)
+                                  const UiPill(label: 'En vivo', dot: true)
+                                else
+                                  SizedBox(
+                                    width: 52,
+                                    child: UiProgressBar(
+                                      value: row.ratio,
+                                      height: 6,
+                                      semanticLabel:
+                                          '${(row.ratio * 100).round()} por ciento',
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            onTap: () {
+                              if (row.isOpen) {
+                                _onStartBleSession();
+                              } else {
+                                _viewSessionActa(row.session);
+                              }
+                            },
+                          ),
+                      ],
                     ),
-                  ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return UiPage(
+      header: UiTopBar(
+        title: widget.course.name,
+        subtitle:
+            '${widget.course.code} · Grupo ${widget.course.groupCode} · ${widget.course.semester}',
+        onBack: () => Navigator.of(context).pop(),
+        trailing: UiRoundIconButton(
+          icon: Icons.more_horiz_rounded,
+          tooltip: 'Opciones de la clase',
+          onPressed: _showCourseOptionsSheet,
+        ),
+      ),
+      bottom: _isLoading || overview == null
+          ? null
+          : LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1.0);
+                final stackVertical =
+                    scale > 1.15 || constraints.maxWidth < 290;
+                if (stackVertical) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      UiButton(
+                        label: 'Estudiantes',
+                        variant: UiButtonVariant.tonal,
+                        icon: Icons.person_outline_rounded,
+                        onPressed: _openStudentsScreen,
+                      ),
+                      const SizedBox(height: UiSpace.sm),
+                      UiButton(
+                        label: 'Enviar Excel',
+                        variant: UiButtonVariant.tonal,
+                        icon: Icons.ios_share_rounded,
+                        onPressed: () => _openReportsScreen(exportOnOpen: true),
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(
+                      child: UiButton(
+                        label: 'Estudiantes',
+                        variant: UiButtonVariant.tonal,
+                        icon: Icons.person_outline_rounded,
+                        onPressed: _openStudentsScreen,
+                      ),
+                    ),
+                    const SizedBox(width: UiSpace.sm),
+                    Expanded(
+                      child: UiButton(
+                        label: 'Enviar Excel',
+                        variant: UiButtonVariant.tonal,
+                        icon: Icons.ios_share_rounded,
+                        onPressed: () => _openReportsScreen(exportOnOpen: true),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+      body: body,
+    );
+  }
+}
+
+/// Pantalla interna para la gestión y consulta de los estudiantes de la clase.
+class _CourseStudentsScreen extends StatefulWidget {
+  const _CourseStudentsScreen({
+    required this.course,
+    required this.database,
+    required this.rosterService,
+  });
+
+  final CourseModel course;
+  final AppDatabase database;
+  final RosterImportService rosterService;
+
+  @override
+  State<_CourseStudentsScreen> createState() => _CourseStudentsScreenState();
+}
+
+class _CourseStudentsScreenState extends State<_CourseStudentsScreen> {
+  late final StudentAdminService _admin = StudentAdminService(database: widget.database);
+  bool _isLoading = true;
+  List<StudentModel> _students = <StudentModel>[];
+  List<StudentModel> _retired = <StudentModel>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudents();
+  }
+
+  Future<void> _loadStudents() async {
+    setState(() => _isLoading = true);
+    try {
+      final all = await widget.database.getAllStudentsByCourse(widget.course.id);
+      if (!mounted) return;
+      int byName(StudentModel a, StudentModel b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
+      setState(() {
+        _students = all.where((s) => s.isActive).toList()..sort(byName);
+        _retired = all.where((s) => s.isRetired).toList()..sort(byName);
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('No se pudo cargar la lista de estudiantes: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        showUiSnack(context, 'No se pudo cargar la lista de estudiantes.');
+      }
+    }
+  }
+
+  Future<void> _openImportModal() async {
+    final changed = await RosterImportModal.show(context, widget.course);
+    if (changed == true) await _loadStudents();
+  }
+
+  Future<void> _openEnrollment() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => EnrollmentHostScreen(course: widget.course, database: widget.database),
+      ),
+    );
+    if (mounted) await _loadStudents();
+  }
+
+  Future<void> _showStudentOptions(StudentModel student) async {
+    final kind = await _admin.removalKindFor(student);
+    if (!mounted) return;
+    await showUiSheet<void>(
+      context,
+      builder: (sheetContext) {
+        final c = UiColors.of(sheetContext);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(student.fullName, style: UiText.h2.copyWith(color: c.ink)),
+            const SizedBox(height: UiSpace.xs),
+            Text(_subtitleFor(student), style: UiText.label.copyWith(color: c.muted)),
+            const SizedBox(height: UiSpace.md),
+            if (student.hasDevice)
+              UiNavRow(
+                title: 'Desvincular celular',
+                subtitle: 'Podrá vincular otro desde «Inscribir estudiantes»',
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _confirmUnbind(student);
+                },
+              ),
+            UiNavRow(
+              title: kind == StudentRemovalKind.delete ? 'Eliminar de la clase' : 'Retirar de la clase',
+              subtitle: kind == StudentRemovalKind.delete
+                  ? 'No tiene asistencias: se borra por completo'
+                  : 'Su historial se conserva en los reportes',
+              destructive: true,
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _confirmRemoval(student, kind);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmUnbind(StudentModel student) async {
+    final ok = await showUiConfirm(
+      context,
+      title: '¿Desvincular el celular?',
+      message:
+          'El celular de ${student.fullName} dejará de servir para marcar asistencia en esta clase. Podrá vincular otro desde «Inscribir estudiantes».',
+      confirmLabel: 'Desvincular',
+      destructive: true,
+    );
+    if (!ok) return;
+    try {
+      await _admin.unbindDevice(student);
+      if (mounted) showUiSnack(context, 'Celular desvinculado.');
+    } catch (e) {
+      debugPrint('No se pudo desvincular: $e');
+      if (mounted) showUiSnack(context, 'No se pudo desvincular. Inténtalo de nuevo.');
+    }
+    await _loadStudents();
+  }
+
+  /// Doble confirmación: aviso con las consecuencias y luego escribir el primer nombre.
+  Future<void> _confirmRemoval(StudentModel student, StudentRemovalKind kind) async {
+    final isDelete = kind == StudentRemovalKind.delete;
+    final count = isDelete ? 0 : await _admin.attendanceCount(student);
+    if (!mounted) return;
+    final first = await showUiConfirm(
+      context,
+      title: isDelete ? '¿Eliminar a ${student.fullName}?' : '¿Retirar a ${student.fullName}?',
+      message: isDelete
+          ? 'No tiene asistencias registradas. Se borrará de la clase y su celular dejará de servir.'
+          : 'Tiene ${UiFormat.count(count, 'asistencia registrada', 'asistencias registradas')}. '
+              'Saldrá de la lista y de las sesiones nuevas, pero su historial se conserva en los reportes y el Excel. '
+              'Su celular dejará de servir para esta clase.',
+      confirmLabel: 'Continuar',
+      destructive: true,
+    );
+    if (!first || !mounted) return;
+
+    final confirmed = await showUiSheet<bool>(
+      context,
+      builder: (_) => _TypeNameToConfirm(student: student, actionLabel: isDelete ? 'Eliminar' : 'Retirar'),
+    );
+    if (confirmed != true) return;
+    try {
+      final done = await _admin.remove(student);
+      if (mounted) {
+        showUiSnack(
+          context,
+          done == StudentRemovalKind.delete
+              ? '${student.fullName} fue eliminado de la clase.'
+              : '${student.fullName} fue retirado de la clase.',
+        );
+      }
+    } catch (e) {
+      debugPrint('No se pudo quitar al estudiante: $e');
+      if (mounted) showUiSnack(context, 'No se pudo completar. Inténtalo de nuevo.');
+    }
+    await _loadStudents();
+  }
+
+  String _subtitleFor(StudentModel student) {
+    final parts = <String>[student.studentCode];
+    if (student.isRetired) {
+      final when = DateTime.tryParse(student.retiredAt ?? '');
+      parts.add(when == null ? 'Retirado' : 'Retirado el ${UiFormat.shortDate(when.toLocal())}');
+    } else {
+      parts.add(student.hasDevice ? 'Celular vinculado' : 'Sin celular');
+      if (student.wasAddedInClass) parts.add('Agregado en clase');
+    }
+    return parts.join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final bound = _students.where((s) => s.hasDevice).length;
+    final Widget body;
+    if (_isLoading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (_students.isEmpty && _retired.isEmpty) {
+      body = UiEmptyState(
+        icon: Icons.group_add_outlined,
+        title: 'Aún no hay estudiantes',
+        message: 'Inscríbelos con el código de la clase, o carga primero tu lista.',
+        actionLabel: 'Inscribir estudiantes',
+        onAction: _openEnrollment,
+      );
+    } else {
+      body = RefreshIndicator(
+        onRefresh: _loadStudents,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(UiSpace.page, UiSpace.sm, UiSpace.page, UiSpace.xl),
+          children: [
+            if (_students.isNotEmpty) ...[
+              Text(
+                '${UiFormat.count(_students.length, 'estudiante', 'estudiantes')} · $bound con celular vinculado',
+                style: UiText.label.copyWith(color: c.muted),
+              ),
+              const SizedBox(height: UiSpace.sm),
+              UiListGroup(
+                children: [
+                  for (final student in _students)
+                    UiPersonRow(
+                      name: student.fullName,
+                      subtitle: _subtitleFor(student),
+                      avatarTone: student.hasDevice ? UiTone.tint : UiTone.neutral,
+                      onTap: () => _showStudentOptions(student),
+                      trailing: UiRoundIconButton(
+                        icon: Icons.more_horiz_rounded,
+                        tooltip: 'Opciones de ${student.fullName}',
+                        onPressed: () => _showStudentOptions(student),
+                      ),
+                    ),
                 ],
               ),
             ],
-            SizedBox(height: spacing.xs),
-            Row(
-              children: <Widget>[
-                Text(
-                  'Bitmap: ',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: colors.onSurfaceMuted,
-                  ),
-                ),
-                Text(
-                  '0x${session.bitmapHex}',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: isClosed ? colors.statusNormal : colors.onSurface,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: spacing.sm),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: <Widget>[
-                if (isClosed)
-                  OutlinedButton.icon(
-                    onPressed: () => _viewSessionActa(session),
-                    icon: const Icon(Icons.verified_user_outlined, size: 16),
-                    label: const Text('Ver Acta Firmada'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: colors.primary,
-                      side: BorderSide(color: colors.primary),
+            if (_retired.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: UiSpace.xl, bottom: UiSpace.sm),
+                child: Text('Retirados (${_retired.length})', style: UiText.title.copyWith(color: c.ink)),
+              ),
+              UiListGroup(
+                children: [
+                  for (final student in _retired)
+                    UiPersonRow(
+                      name: student.fullName,
+                      subtitle: _subtitleFor(student),
+                      avatarTone: UiTone.neutral,
                     ),
-                  )
-                else
-                  FilledButton.icon(
-                    onPressed: _onStartBleSession,
-                    icon: const Icon(Icons.sensors, size: 16),
-                    label: const Text('Reanudar Sesión'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colors.primary,
-                    ),
-                  ),
-              ],
-            ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: UiSpace.sm),
+                child: Text(
+                  'Si alguno vuelve, se inscribe de nuevo y lo apruebas.',
+                  style: UiText.label.copyWith(color: c.muted),
+                ),
+              ),
+            ],
           ],
         ),
+      );
+    }
+
+    return UiPage(
+      header: UiTopBar(
+        title: 'Estudiantes',
+        subtitle: widget.course.name,
+        onBack: () => Navigator.of(context).pop(),
+        trailing: UiRoundIconButton(
+          icon: Icons.playlist_add_rounded,
+          tooltip: 'Agregar a la lista',
+          onPressed: _openImportModal,
+        ),
       ),
+      bottom: UiButton(
+        label: 'Inscribir estudiantes',
+        icon: Icons.qr_code_2_rounded,
+        onPressed: _openEnrollment,
+      ),
+      body: body,
     );
   }
+}
 
-  Widget _buildEmptySessionsView() {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
+/// Segunda confirmación: escribir el primer nombre del estudiante.
+class _TypeNameToConfirm extends StatefulWidget {
+  const _TypeNameToConfirm({required this.student, required this.actionLabel});
 
-    return Center(
-      child: Padding(
-        padding: spacing.insetsXl,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              Icons.history_toggle_off,
-              size: 56,
-              color: colors.onSurfaceMuted.withValues(alpha: 0.6),
-            ),
-            SizedBox(height: spacing.md),
-            Text(
-              'No hay sesiones registradas',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colors.onSurface,
-              ),
-            ),
-            SizedBox(height: spacing.xs),
-            Text(
-              'Inicia una sesión de asistencia con el botón inferior para comenzar '
-              'a tomar asistencia en el aula mediante Bluetooth Low Energy.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.onSurfaceMuted,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  final StudentModel student;
+  final String actionLabel;
+
+  @override
+  State<_TypeNameToConfirm> createState() => _TypeNameToConfirmState();
+}
+
+class _TypeNameToConfirmState extends State<_TypeNameToConfirm> {
+  final TextEditingController _typed = TextEditingController();
+
+  @override
+  void dispose() {
+    _typed.dispose();
+    super.dispose();
   }
 
-  Widget _buildCourseHeaderCard(
-    int count,
-    int maxBits,
-    double fraction,
-  ) {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-
-    return Card(
-      margin: spacing.insetsCard,
-      elevation: 0,
-      shape: radii.cardShape(side: BorderSide(color: colors.outlineVariant)),
-      child: Padding(
-        padding: spacing.insetsCard,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Container(
-                  padding: spacing.symmetric(
-                    horizontal: spacing.xs + 2,
-                    vertical: spacing.xxs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.secondaryContainer,
-                    borderRadius: radii.borderSm,
-                  ),
-                  child: Text(
-                    widget.course.code,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: colors.onSecondaryContainer,
-                    ),
-                  ),
-                ),
-                SizedBox(width: spacing.xs),
-                Text(
-                  'Grupo ${widget.course.groupCode}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: colors.onSurface,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  'Semestre ${widget.course.semester}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceMuted,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: spacing.sm + 2),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                Text(
-                  'Capacidad del Bitmap',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: colors.onSurface,
-                  ),
-                ),
-                Text(
-                  '$count ocupados / $maxBits bits disponibles',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: count == maxBits
-                        ? colors.statusPerdida
-                        : colors.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: spacing.xs),
-            ClipRRect(
-              borderRadius: radii.borderXs,
-              child: LinearProgressIndicator(
-                value: fraction,
-                minHeight: 8,
-                backgroundColor: colors.surfaceContainerHigh,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  count == maxBits
-                      ? colors.statusPerdida
-                      : colors.secondary,
-                ),
-              ),
-            ),
-            SizedBox(height: spacing.xxs + 2),
-            Text(
-              '${maxBits - count} cupos restantes para esta sección académica.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceMuted,
-              ),
-            ),
-          ],
+  @override
+  Widget build(BuildContext context) {
+    final c = UiColors.of(context);
+    final firstName = StudentAdminService.firstNameOf(widget.student);
+    final matches = StudentAdminService.confirmsFirstName(widget.student, _typed.text);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Confirma escribiendo su nombre', style: UiText.h2.copyWith(color: c.ink)),
+        const SizedBox(height: UiSpace.xs),
+        Text('Escribe «$firstName» para continuar.', style: UiText.body.copyWith(color: c.muted)),
+        const SizedBox(height: UiSpace.lg),
+        TextField(
+          controller: _typed,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(labelText: 'Primer nombre'),
         ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyRosterView() {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-
-    return Center(
-      child: Padding(
-        padding: spacing.insetsXl,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              Icons.group_off_outlined,
-              size: 56,
-              color: colors.onSurfaceMuted.withValues(alpha: 0.6),
-            ),
-            SizedBox(height: spacing.md),
-            Text(
-              'No hay estudiantes inscritos',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colors.onSurface,
-              ),
-            ),
-            SizedBox(height: spacing.xs),
-            Text(
-              'Utiliza el botón superior para importar estudiantes desde un archivo '
-              'Excel (.xlsx), CSV, texto pegado del SMA o mediante registro manual.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.onSurfaceMuted,
-              ),
-            ),
-          ],
+        const SizedBox(height: UiSpace.lg),
+        UiButton(
+          label: widget.actionLabel,
+          onPressed: matches ? () => Navigator.of(context).pop(true) : null,
         ),
-      ),
-    );
-  }
-
-  Widget _buildStudentTile(StudentModel student) {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-
-    final bitPadded = student.bitIndex.toString().padLeft(2, '0');
-
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: radii.cardShape(side: BorderSide(color: colors.outlineVariant)),
-      child: ListTile(
-        onTap: () => _showStudentQrDialog(student),
-        contentPadding: spacing.symmetric(
-          horizontal: spacing.sm + 2,
-          vertical: spacing.xxs,
-        ),
-        leading: Container(
-          width: 52,
-          height: 38,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: colors.primaryContainer,
-            borderRadius: radii.borderSm,
-          ),
-          child: Text(
-            '#$bitPadded',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: colors.onPrimaryContainer,
-              fontFamily: 'monospace',
-              fontSize: 13,
-            ),
-          ),
-        ),
-        title: Text(
-          student.fullName,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: colors.onSurface,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Cód: ${student.studentCode}',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontWeight: FontWeight.w500,
-                color: colors.primary,
-              ),
-            ),
-            if (student.email != null)
-              Text(
-                student.email!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceMuted,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.qr_code_2),
-          tooltip: 'Ver QR de enrolamiento',
-          color: colors.primary,
-          onPressed: () => _showStudentQrDialog(student),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomBleBar() {
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-
-    return Container(
-      padding: spacing.only(
-        left: spacing.md,
-        top: spacing.sm,
-        right: spacing.md,
-        bottom: spacing.md,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainer,
-        border: Border(top: BorderSide(color: colors.outlineVariant)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: _onStartBleSession,
-            icon: const Icon(Icons.sensors),
-            label: const Text('Iniciar Sesión de Asistencia BLE'),
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.primary,
-              foregroundColor: colors.onPrimary,
-              padding: spacing.symmetric(vertical: spacing.sm),
-              shape: radii.buttonShape(),
-            ),
-          ),
-        ),
-      ),
+      ],
     );
   }
 }

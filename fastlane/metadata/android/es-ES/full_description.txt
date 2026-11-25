@@ -1,0 +1,31 @@
+AsistenciaBLE es un sistema de control de asistencia sin servidor y sin conexión a internet para instituciones de educación superior. Los estudiantes registran su asistencia acercando su celular al del docente mediante Bluetooth de baja energía (BLE), sin requerir internet durante la clase, sin servidores externos y con costo de infraestructura $0.
+
+DISEÑADO PARA EDUCACIÓN SUPERIOR
+Creado para eliminar el llamado a lista tradicional en papel y las filas sin necesidad de integraciones complejas con sistemas académicos. AsistenciaBLE se compila desde una única base de código Flutter en dos sabores especializados:
+• AsistenciaBLE Docente
+• AsistenciaBLE Estudiante
+
+CÓMO FUNCIONA
+1. Inscripción el primer día:
+El docente proyecta un código QR único del curso. El estudiante lo escanea con la cámara, digita su código estudiantil y envía la solicitud por BLE. Ambos dispositivos realizan un intercambio de claves X25519 y derivan un secreto local mediante HKDF-SHA256, vinculando el celular al curso de forma segura.
+2. Toma de asistencia en clase:
+El docente inicia la sesión y dicta un PIN de 2 dígitos. Los estudiantes escriben el PIN y acercan su celular al del docente (umbral de proximidad RSSI de -75 dBm).
+3. Confirmación criptográfica:
+El celular del estudiante emite un paquete con etiqueta rotativa HMAC-SHA256 que cambia cada 30 segundos. El docente valida la proximidad y marca la casilla en un mapa de bits de 8 bytes (hasta 64 estudiantes por clase), reemitiendo un eco BLE cada segundo. El celular del estudiante muestra de inmediato «¡Presente!» con sello verde, sin conexiones GATT ni servidores centrales.
+
+CARACTERÍSTICAS PRINCIPALES
+• 100 % Offline-First: Toda la información se guarda localmente en SQLite en el celular del docente. Cero consumo de datos en el aula.
+• Lista invertida de excepción: El docente marca a un solo toque a estudiantes sin celular o con batería agotada, garantizando cero exclusión.
+• Reportes oficiales en Excel: Genera un libro .xlsx con 4 hojas (Resumen, Detalle, Sesiones, Metadatos) y acta de sesión firmada criptográficamente, listo para compartir.
+• Sincronización opcional en la nube: Respaldo opcional en Google Sheets y Google Drive con la cuenta de Google del docente (permite restringir al dominio institucional).
+• Recorrido animado y centro de ayuda: 13 escenas animadas ilustran cada paso y resuelven dudas frecuentes de profesores y estudiantes.
+• Diagnóstico de permisos: Verificación interactiva de permisos de Bluetooth, ubicación y cámara.
+• Gestión ágil de listas: Importación directa desde archivos .xlsx y .csv, pegado desde el portapapeles o registro manual.
+
+PRIVACIDAD Y SEGURIDAD
+• Sin servidores ni rastreo: Sin telemetría ni bases de datos en la nube. Pensada para la Ley 1581 de 2012 de protección de datos personales.
+• Verificación física real: Tokens rotativos y umbrales RSSI que dificultan los registros remotos y las suplantaciones.
+• Permisos mínimos: Bluetooth LE para proximidad física; Ubicación solo en Android 11 o inferior por requerimiento del sistema operativo para escaneo BLE (sin GPS ni geolocalización); Cámara únicamente para escanear el QR de inscripción; Internet solo si el docente activa el respaldo voluntario en Google.
+
+PROYECTO ACADÉMICO
+Proyecto de grado titulado «Aplicación móvil para el registro de asistencia por proximidad Bluetooth sin servidor en instituciones de educación superior», desarrollado por Yoner De Jesús Isaza Vides y Álvaro Luis Garrido Medina, bajo la dirección de Miguel Humberto Romero Acuña y Lisseth Paola Castañeda Vega en la Universidad de La Guajira (Riohacha, 2026). Prueba piloto en el programa de Ingeniería de Sistemas; solución abierta y adaptable a cualquier institución de educación superior.

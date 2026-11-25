@@ -1,3 +1,6 @@
+import 'package:asistencia_uniguajira/core/models/attendance_record_model.dart';
+import 'package:asistencia_uniguajira/core/models/session_model.dart';
+import 'package:asistencia_uniguajira/data/services/course_overview_service.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -48,7 +51,7 @@ StudentModel _student({
     courseId: 'course-session-1',
     studentCode: studentCode,
     fullName: fullName,
-    email: '$studentCode${AppConstants.institutionalDomain}',
+    email: '$studentCode@institucion.edu.co',
     bitIndex: bitIndex,
     personalSecret: personalSecret,
     enrolledAt: '2026-11-06T08:02:00.000Z',
@@ -179,6 +182,67 @@ void main() {
     // -------------------------------------------------------------------------
     // 1. Inicio de sesión docente y configuración inicial
     // -------------------------------------------------------------------------
+    group('retomar la sesión abierta', () {
+      test('salir sin cerrar y volver a entrar retoma la misma sesión, PIN y llegados', () async {
+        final first = await controller.startTeacherSession(course: course, customPin: 47);
+        await controller.toggleManualAttendance(studentId: student2.id, isPresent: true);
+        await controller.dispose(); // el docente sale sin cerrar
+
+        final again = AttendanceSessionController(database: database, bleService: ble);
+        final resumed = await again.startTeacherSession(course: course, customPin: 12);
+        expect(resumed.session.id, first.session.id);
+        expect(resumed.pin, 47); // se conserva el PIN que ya se dictó
+        expect(BlePacketCodec.isStudentBitSet(resumed.bitmap8, student2.bitIndex), isTrue);
+        final open = (await database.getSessionsByCourse(course.id)).where((s) => s.closedAt == null);
+        expect(open, hasLength(1));
+        await again.dispose();
+        controller = AttendanceSessionController(database: database, bleService: ble);
+      });
+
+      test('repara clases con varias sesiones abiertas (caso real del 15 de noviembre)', () async {
+        Future<void> openSession(String id, String startedAt) =>
+            database.insertSession(SessionModel(id: id, courseId: course.id, startedAt: startedAt, roomPin: '69'));
+        await openSession('vieja-vacia', '2026-11-15T08:27:13.000');
+        await openSession('vieja-con-asistencia', '2026-11-15T08:28:07.000');
+        await openSession('mas-reciente', '2026-11-15T08:28:20.000');
+        await database.insertAttendanceRecord(AttendanceRecordModel(
+          id: 'r1',
+          sessionId: 'vieja-con-asistencia',
+          studentId: student0.id,
+          bitIndex: student0.bitIndex,
+          method: AppConstants.attendanceMethodManualInverted,
+          recordedAt: '2026-11-15T08:28:30.000',
+        ));
+
+        final open = await database.consolidateOpenSession(course.id);
+        expect(open!.id, 'mas-reciente');
+        final sessions = {for (final s in await database.getSessionsByCourse(course.id)) s.id: s};
+        expect(sessions.containsKey('vieja-vacia'), isFalse); // vacía: se borra
+        expect(sessions['vieja-con-asistencia']!.closedAt, isNotNull); // con asistencias: se cierra
+        expect(sessions['mas-reciente']!.closedAt, isNull);
+      });
+
+      test('salir sin que nadie llegue descarta la sesión; con asistencias no', () async {
+        final empty = await controller.startTeacherSession(course: course, customPin: 47);
+        expect(await controller.discardIfEmpty(), isTrue);
+        expect(await database.getSessionById(empty.session.id), isNull);
+        expect(await database.consolidateOpenSession(course.id), isNull);
+
+        final withOne = await controller.startTeacherSession(course: course, customPin: 48);
+        await controller.toggleManualAttendance(studentId: student0.id, isPresent: true);
+        expect(await controller.discardIfEmpty(), isFalse);
+        expect((await database.getSessionById(withOne.session.id))!.closedAt, isNull);
+      });
+
+      test('después de cerrar y firmar ya no queda ninguna sesión abierta', () async {
+        await controller.startTeacherSession(course: course, customPin: 47);
+        await controller.closeAndSignSession();
+        expect(await database.consolidateOpenSession(course.id), isNull);
+        final overview = await CourseOverviewService(database: database).load(course.id);
+        expect(overview.openSession, isNull);
+      });
+    });
+
     test(
       '1.1 startTeacherSession inicializa sesión con PIN de 2 dígitos, roster y bitmap8 en ceros',
       () async {
@@ -379,7 +443,9 @@ void main() {
         final echo = BlePacketCodec.verifyTeacherEchoBytes(
           packet16: ble.advertisements.last,
           expectedCourseId: course.id,
+          expectedSessionPin: state.pin,
           sharedSecretHex: course.courseSecret,
+          currentTimeTick: BlePacketCodec.computeTimeTick(DateTime.now()),
         );
         expect(echo.isValid, isTrue);
         expect(BlePacketCodec.extractPresentBitIndices(echo.bitmap8!), <int>[0, 1, 63]);
@@ -387,7 +453,7 @@ void main() {
     );
 
     test(
-      '2.2 processIncomingStudentPacket es idempotente ante recepciones repetidas y actualiza RSSI',
+      '2.2 processIncomingStudentPacket es idempotente ante recepciones repetidas y conserva el primer registro',
       () async {
         final state = await controller.startTeacherSession(
           course: course,
@@ -416,7 +482,7 @@ void main() {
         expect(recordsFirst, hasLength(1));
         expect(recordsFirst.first.rssiAvg, -70.0);
 
-        // Envío repetido con mejor señal
+        // Envío repetido con otra señal: se acepta sin sobreescribir el registro previo
         final second = await controller.processIncomingStudentPacket(
           packet16: packet,
           rssi: -55,
@@ -428,7 +494,7 @@ void main() {
           state.session.id,
         );
         expect(recordsSecond, hasLength(1));
-        expect(recordsSecond.first.rssiAvg, -55.0);
+        expect(recordsSecond.first.rssiAvg, -70.0);
         expect(state.bitmapHex, '0100000000000000');
       },
     );
@@ -669,7 +735,9 @@ void main() {
         final echo = BlePacketCodec.verifyTeacherEchoBytes(
           packet16: ble.advertisements.last,
           expectedCourseId: course.id,
+          expectedSessionPin: state.pin,
           sharedSecretHex: course.courseSecret,
+          currentTimeTick: BlePacketCodec.computeTimeTick(DateTime.now()),
         );
         expect(echo.isValid, isTrue);
         expect(BlePacketCodec.isStudentBitSet(echo.bitmap8!, 2), isTrue);
@@ -718,7 +786,9 @@ void main() {
         final echo = BlePacketCodec.verifyTeacherEchoBytes(
           packet16: ble.advertisements.last,
           expectedCourseId: course.id,
+          expectedSessionPin: state.pin,
           sharedSecretHex: course.courseSecret,
+          currentTimeTick: BlePacketCodec.computeTimeTick(DateTime.now()),
         );
         expect(echo.isValid, isTrue);
         expect(BlePacketCodec.isStudentBitSet(echo.bitmap8!, 1), isFalse);
@@ -756,9 +826,10 @@ void main() {
         );
         final teacherEcho = BlePacketCodec.buildTeacherEchoBytes(
           courseId: course.id,
-          sessionId: 'session-echo-demo-1',
+          sessionPin: 42,
           bitmap8: bitmapWithBit0,
           sharedSecretHex: course.courseSecret,
+          timeTick: BlePacketCodec.computeTimeTick(now),
         );
 
         final outcome = await controller.checkTeacherEchoForStudent(
@@ -807,9 +878,10 @@ void main() {
         );
         final teacherEcho = BlePacketCodec.buildTeacherEchoBytes(
           courseId: course.id,
-          sessionId: 'session-echo-demo-1',
+          sessionPin: 42,
           bitmap8: bitmapOnlyBit1,
           sharedSecretHex: course.courseSecret,
+          timeTick: BlePacketCodec.computeTimeTick(now),
         );
 
         final outcome = await controller.checkTeacherEchoForStudent(
@@ -843,9 +915,10 @@ void main() {
         );
         final validTeacherEcho = BlePacketCodec.buildTeacherEchoBytes(
           courseId: course.id,
-          sessionId: 'session-echo-demo-1',
+          sessionPin: 42,
           bitmap8: bitMap,
           sharedSecretHex: course.courseSecret,
+          timeTick: BlePacketCodec.computeTimeTick(now),
         );
 
         // 1. Eco adulterado en la firma
@@ -868,9 +941,10 @@ void main() {
         // 2. Eco de otro curso
         final foreignCourseEcho = BlePacketCodec.buildTeacherEchoBytes(
           courseId: 'otro-curso-xyz',
-          sessionId: 'session-echo-demo-1',
+          sessionPin: 42,
           bitmap8: bitMap,
           sharedSecretHex: course.courseSecret,
+          timeTick: BlePacketCodec.computeTimeTick(now),
         );
         final foreignOutcome = await controller.checkTeacherEchoForStudent(
           enrollment: enrollment,
@@ -1147,6 +1221,27 @@ void main() {
 
         // Múltiples dispose son idempotentes y no lanzan error
         await expectLater(controller.dispose(), completes);
+      },
+    );
+
+    test(
+      '6.2 controller captura incidencias de BleAttendanceService y actualiza bleWarning',
+      () async {
+        await controller.startTeacherSession(course: course, customPin: 55);
+
+        // Simulamos emisión de una incidencia BLE
+        ble.injectSimulatedIssue(
+          const BleRuntimeIssue(
+            type: BleRuntimeIssueType.advertising,
+            message: 'ADVERTISE_FAILED_INTERNAL_ERROR en adaptador',
+          ),
+        );
+
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          controller.bleWarning,
+          contains('ADVERTISE_FAILED_INTERNAL_ERROR en adaptador'),
+        );
       },
     );
   });

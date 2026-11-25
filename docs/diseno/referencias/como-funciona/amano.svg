@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="640" font-family="Figtree, sans-serif" role="img" aria-label="El profesor marca a un estudiante a mano tocando su nombre en la lista">
+  <rect width="320" height="220" fill="#E3F1F3"/>
+  <rect x="40" y="18" width="112" height="184" rx="20" fill="#1F7A87"></rect>
+  <rect x="52" y="44" width="88" height="34" rx="10" fill="#FFFFFF"></rect>
+  <circle cx="66" cy="61" r="8" fill="#DDEEF0"></circle>
+  <rect x="80" y="57" width="30" height="8" rx="4" fill="#10262B"></rect>
+  <circle cx="124" cy="61" r="8" fill="#1F7A87"></circle>
+  <path d="M120 61 l3 3 l5 -6" stroke="#FFFFFF" stroke-width="2.400" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  <rect x="52" y="86" width="88" height="34" rx="10" fill="#FFFFFF"></rect>
+  <circle cx="66" cy="103" r="8" fill="#DDEEF0"></circle>
+  <rect x="80" y="99" width="26" height="8" rx="4" fill="#10262B"></rect>
+  <circle cx="124" cy="103" r="8" fill="none" stroke="#51666B" stroke-width="2" stroke-dasharray="3 3"></circle>
+  <rect x="52" y="128" width="88" height="34" rx="10" fill="#FFFFFF"></rect>
+  <circle cx="66" cy="145" r="8" fill="#DDEEF0"></circle>
+  <rect x="80" y="141" width="32" height="8" rx="4" fill="#10262B"></rect>
+  <circle cx="124" cy="145" r="8" fill="#1F7A87"></circle>
+  <path d="M120 145 l3 3 l5 -6" stroke="#FFFFFF" stroke-width="2.400" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  <circle cx="124" cy="103" r="15" fill="none" stroke="#E8A44C" stroke-width="3"></circle>
+  <rect x="226" y="76" width="56" height="70" rx="22" fill="#FFFFFF" stroke="#10262B" stroke-width="3"></rect>
+  <rect x="144" y="92" width="100" height="22" rx="11" fill="#FFFFFF" stroke="#10262B" stroke-width="3"></rect>
+  <rect x="228" y="94.500" width="18" height="17" fill="#FFFFFF"></rect>
+  <rect x="212" y="166" width="76" height="26" rx="13" fill="#E8A44C"></rect>
+  <text x="250" y="183.500" text-anchor="middle" font-size="12" font-weight="700" fill="#10262B">A mano</text>
+</svg>

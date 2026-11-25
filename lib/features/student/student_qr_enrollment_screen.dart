@@ -1,678 +1,602 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../core/constants/app_constants.dart';
+import '../../core/crypto/enrollment_packet_codec.dart';
 import '../../core/models/student_enrollment_model.dart';
 import '../../data/local/app_database.dart';
-import '../../data/services/student_enrollment_service.dart';
-import '../../theme/theme.dart';
+import '../../data/services/ble_attendance_service.dart';
+import '../../data/services/ble_permission_service.dart';
+import '../../data/services/enrollment_client_service.dart';
+import '../../ui/ui.dart';
+import '../shared/ble_ready_gate.dart';
 
-/// Pantalla de enrolamiento del estudiante mediante código QR del docente.
+enum _JoinStep { scan, form, waiting, done }
+
+/// "Unirme a una clase": escanear el QR de la clase, escribir el código
+/// estudiantil y esperar la respuesta del profesor por Bluetooth.
 ///
-/// Dispone de dos modalidades:
-/// 1. Escaneo en vivo con cámara usando [MobileScanner] y recuadro guía.
-/// 2. Ingreso manual del JSON del QR como respaldo para cámaras dañadas o pruebas.
+/// Devuelve la inscripción guardada al cerrarse con éxito.
 class StudentQrEnrollmentScreen extends StatefulWidget {
   const StudentQrEnrollmentScreen({
     super.key,
-    this.enrollmentService,
     this.database,
+    this.bleService,
+    this.permissionService,
+    this.initialInvite,
+    this.clientService,
   });
 
-  final StudentEnrollmentService? enrollmentService;
   final AppDatabase? database;
+  final BleAttendanceService? bleService;
+  final BlePermissionService? permissionService;
+
+  /// Salta el escaneo (pruebas, o si el código llega por otro medio).
+  final ClassInvite? initialInvite;
+
+  /// Para pruebas: reemplaza el servicio de inscripción.
+  final EnrollmentClientService? clientService;
 
   @override
-  State<StudentQrEnrollmentScreen> createState() =>
-      _StudentQrEnrollmentScreenState();
+  State<StudentQrEnrollmentScreen> createState() => _StudentQrEnrollmentScreenState();
 }
 
-class _StudentQrEnrollmentScreenState extends State<StudentQrEnrollmentScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-  late final MobileScannerController _scannerController;
-  late final StudentEnrollmentService _enrollmentService;
-  late final TextEditingController _manualJsonController;
+class _StudentQrEnrollmentScreenState extends State<StudentQrEnrollmentScreen> {
+  late final AppDatabase _database;
+  late final BleAttendanceService _ble;
+  late final bool _ownsBle;
+  late final BlePermissionService _permissions;
+  late final EnrollmentClientService _client;
 
-  bool _isProcessing = false;
-  bool _isTorchOn = false;
+  MobileScannerController? _scanner;
+  final TextEditingController _code = TextEditingController();
+  final TextEditingController _name = TextEditingController();
+  final TextEditingController _paste = TextEditingController();
+
+  _JoinStep _step = _JoinStep.scan;
+  ClassInvite? _invite;
+  bool _torchOn = false;
+  bool _handlingScan = false;
+  String? _scanError;
+  String? _codeError;
+  String? _nameError;
+  String? _bleIssue;
+
+  StreamSubscription<EnrollmentClientUpdate>? _updates;
+  StreamSubscription<BleRuntimeIssue>? _issueSub;
+  EnrollmentClientPhase _phase = EnrollmentClientPhase.searching;
+  StudentEnrollmentModel? _enrollment;
 
   @override
   void initState() {
     super.initState();
-    final db = widget.database ?? AppDatabase.instance;
-    _enrollmentService =
-        widget.enrollmentService ?? StudentEnrollmentService(db);
-    _manualJsonController = TextEditingController();
-
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(_onTabChanged);
-
-    _scannerController = MobileScannerController(
-      formats: const <BarcodeFormat>[BarcodeFormat.qrCode],
-      detectionSpeed: DetectionSpeed.normal,
-    );
-  }
-
-  void _onTabChanged() {
-    if (_tabController.indexIsChanging) return;
-    if (_tabController.index == 1) {
-      try {
-        _scannerController.stop();
-      } catch (_) {}
-    } else if (_tabController.index == 0) {
-      try {
-        _scannerController.start();
-      } catch (_) {}
+    _database = widget.database ?? AppDatabase.instance;
+    _ownsBle = widget.bleService == null;
+    _ble = widget.bleService ?? BleAttendanceService(minRssiDbm: AppConstants.enrollmentMinRssiDbm);
+    _permissions = widget.permissionService ?? BlePermissionService();
+    _client = widget.clientService ?? EnrollmentClientService(database: _database, bleService: _ble);
+    _issueSub = _ble.issues.listen((issue) {
+      if (mounted) setState(() => _bleIssue = issue.message);
+    });
+    final invite = widget.initialInvite;
+    if (invite != null) {
+      _invite = invite;
+      _step = _JoinStep.form;
+    } else {
+      _scanner = MobileScannerController(
+        formats: const <BarcodeFormat>[BarcodeFormat.qrCode],
+        detectionSpeed: DetectionSpeed.normal,
+      );
     }
   }
 
   @override
   void dispose() {
-    _tabController.removeListener(_onTabChanged);
-    _tabController.dispose();
-    _manualJsonController.dispose();
-    _scannerController.dispose();
+    _updates?.cancel();
+    _issueSub?.cancel();
+    unawaited(_client.cancel().then((_) async {
+      if (_ownsBle) await _ble.dispose();
+    }));
+    _releaseScreen();
+    _scanner?.dispose();
+    _code.dispose();
+    _name.dispose();
+    _paste.dispose();
     super.dispose();
   }
 
-  Future<void> _toggleTorch() async {
-    try {
-      await _scannerController.toggleTorch();
-      if (mounted) {
-        setState(() {
-          _isTorchOn = !_isTorchOn;
-        });
-      }
-    } catch (_) {}
+  void _keepScreenOn() {
+    unawaited(WakelockPlus.enable().catchError((Object error) {
+      debugPrint('No se pudo mantener la pantalla encendida: $error');
+    }));
   }
 
-  Future<void> _switchCamera() async {
-    try {
-      await _scannerController.switchCamera();
-    } catch (_) {}
+  void _releaseScreen() {
+    unawaited(WakelockPlus.disable().catchError((Object error) {
+      debugPrint('No se pudo liberar la pantalla: $error');
+    }));
   }
 
-  Future<void> _handleBarcodeDetected(BarcodeCapture capture) async {
-    if (_isProcessing) return;
+  // ---------------------------------------------------------------------------
+  // Paso 1 · Escanear
+  // ---------------------------------------------------------------------------
 
+  Future<void> _onDetect(BarcodeCapture capture) async {
+    if (_handlingScan || _step != _JoinStep.scan) return;
     for (final barcode in capture.barcodes) {
       final raw = barcode.rawValue;
       if (raw != null && raw.trim().isNotEmpty) {
-        await _processEnrollmentPayload(raw);
+        _handlingScan = true;
+        _readInvite(raw);
+        _handlingScan = false;
         break;
       }
     }
   }
 
-  Future<void> _pasteFromClipboard() async {
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    final text = data?.text;
-    if (text != null && text.trim().isNotEmpty) {
-      _manualJsonController.text = text.trim();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Contenido pegado desde el portapapeles.'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('El portapapeles está vacío o no contiene texto.'),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _processEnrollmentPayload(String rawPayload) async {
-    final trimmed = rawPayload.trim();
-    if (trimmed.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('El contenido de enrolamiento no puede estar vacío.'),
-        ),
-      );
-      return;
-    }
-
-    if (_isProcessing) return;
-
-    setState(() => _isProcessing = true);
-
+  void _readInvite(String raw) {
     try {
-      final enrollment = await _enrollmentService.enrollFromQrPayload(trimmed);
-      if (!mounted) return;
-
-      await _showEnrollmentSuccessDialog(enrollment);
-      if (!mounted) return;
-
-      Navigator.of(context).pop(enrollment);
-    } on FormatException catch (e) {
-      if (!mounted) return;
-      setState(() => _isProcessing = false);
-      final colors = AppColors.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: colors.statusPerdida,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isProcessing = false);
-      final colors = AppColors.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error inesperado al procesar enrolamiento: $e'),
-          backgroundColor: colors.statusPerdida,
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      final invite = ClassInvite.parse(raw);
+      unawaited(_scanner?.stop());
+      setState(() {
+        _invite = invite;
+        _scanError = null;
+        _step = _JoinStep.form;
+      });
+    } on FormatException {
+      setState(() {
+        _scanError = 'Ese código no es de una clase. Pídele a tu profesor que abra «Inscribir estudiantes» y te lo muestre.';
+      });
     }
   }
 
-  Future<void> _showEnrollmentSuccessDialog(
-    StudentEnrollmentModel enrollment,
-  ) async {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
+  Future<void> _toggleTorch() async {
+    try {
+      await _scanner?.toggleTorch();
+      if (mounted) setState(() => _torchOn = !_torchOn);
+    } catch (error) {
+      debugPrint('No se pudo cambiar la linterna: $error');
+      if (mounted) showUiSnack(context, 'No se pudo activar la linterna.');
+    }
+  }
 
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext ctx) {
-        return AlertDialog(
-          shape: radii.dialogShape(),
-          icon: Icon(
-            Icons.check_circle_rounded,
-            size: 56,
-            color: colors.statusNormal,
-          ),
-          title: const Text(
-            '¡Enrolamiento Exitoso!',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 380),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    'Te has vinculado correctamente al curso:',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  SizedBox(height: spacing.xs),
-                  Container(
-                    width: double.infinity,
-                    padding: spacing.insetsMd,
-                    decoration: BoxDecoration(
-                      color: colors.primaryContainer.withValues(
-                        alpha: 0.4,
-                      ),
-                      borderRadius: radii.borderMd,
-                      border: Border.all(
-                        color: colors.primary.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          enrollment.courseName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colors.primary,
-                          ),
-                        ),
-                        SizedBox(height: spacing.xxs),
-                        Text(
-                          'Código Asignatura: ${enrollment.courseCode}',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        Divider(height: spacing.md),
-                        Text(
-                          'Estudiante: ${enrollment.fullName}',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          'Código Estudiantil: ${enrollment.studentCode}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: spacing.sm),
-                  Container(
-                    width: double.infinity,
-                    padding: spacing.symmetric(
-                      horizontal: spacing.sm,
-                      vertical: spacing.xs,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colors.secondaryContainer.withValues(
-                        alpha: 0.5,
-                      ),
-                      borderRadius: radii.borderSm,
-                      border: Border.all(
-                        color: colors.secondary.withValues(
-                          alpha: 0.3,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Icon(
-                          Icons.tag,
-                          color: colors.secondary,
-                          size: 22,
-                        ),
-                        SizedBox(width: spacing.xs),
-                        Expanded(
-                          child: Text(
-                            'Bit Asignado en Aula: #${enrollment.bitIndex.toString().padLeft(2, '0')} (0..63)',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colors.secondary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: spacing.xs),
-                  Text(
-                    'Tu semilla criptográfica individual y el secreto compartido '
-                    'han sido guardados localmente en tu teléfono de forma Offline.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceMuted,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
+  Future<void> _switchCamera() async {
+    try {
+      await _scanner?.switchCamera();
+    } catch (error) {
+      debugPrint('No se pudo cambiar de cámara: $error');
+      if (mounted) showUiSnack(context, 'No se pudo cambiar de cámara.');
+    }
+  }
+
+  Future<void> _showPasteSheet() async {
+    _paste.clear();
+    final raw = await showUiSheet<String>(
+      context,
+      builder: (sheetContext) {
+        final c = UiColors.of(sheetContext);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Pegar el código', style: UiText.h2.copyWith(color: c.ink)),
+            const SizedBox(height: UiSpace.xs),
+            Text(
+              'Si tu profesor te envió el código de la clase como texto, pégalo aquí.',
+              style: UiText.label.copyWith(color: c.muted),
             ),
-          ),
-          actions: <Widget>[
-            FilledButton(
-              style: FilledButton.styleFrom(shape: radii.buttonShape()),
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Continuar a Mis Cursos'),
+            const SizedBox(height: UiSpace.lg),
+            TextField(
+              controller: _paste,
+              maxLines: 4,
+              minLines: 2,
+              decoration: const InputDecoration(labelText: 'Código de la clase'),
             ),
+            const SizedBox(height: UiSpace.md),
+            UiButton(
+              label: 'Pegar',
+              icon: Icons.content_paste_rounded,
+              variant: UiButtonVariant.tonal,
+              compact: true,
+              onPressed: () async {
+                final data = await Clipboard.getData(Clipboard.kTextPlain);
+                _paste.text = data?.text ?? '';
+              },
+            ),
+            const SizedBox(height: UiSpace.sm),
+            UiButton(label: 'Usar este código', onPressed: () => Navigator.of(sheetContext).pop(_paste.text)),
           ],
         );
       },
     );
+    if (raw != null && raw.trim().isNotEmpty && mounted) _readInvite(raw);
   }
+
+  // ---------------------------------------------------------------------------
+  // Paso 2 · Código y nombre
+  // ---------------------------------------------------------------------------
+
+  void _submitForm() {
+    final code = _code.text.trim();
+    final name = _name.text.trim();
+    setState(() {
+      _codeError = EnrollmentPacketCodec.isValidStudentCode(code) ? null : 'Escribe tu código estudiantil, solo números.';
+      _nameError = name.isEmpty ? 'Escribe tu nombre.' : null;
+    });
+    if (_codeError != null || _nameError != null) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _step = _JoinStep.waiting);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Paso 3 · Esperar al profesor
+  // ---------------------------------------------------------------------------
+
+  void _startRequest() {
+    _keepScreenOn();
+    setState(() {
+      _phase = EnrollmentClientPhase.searching;
+      _bleIssue = null;
+    });
+    _updates?.cancel();
+    _updates = _client
+        .request(invite: _invite!, studentCode: _code.text.trim(), displayName: _name.text.trim())
+        .listen(
+      (update) {
+        if (!mounted) return;
+        setState(() {
+          _phase = update.phase;
+          _enrollment = update.enrollment ?? _enrollment;
+          if (update.isFinal) _step = _JoinStep.done;
+        });
+        if (update.isFinal) {
+          _releaseScreen();
+          if (update.phase == EnrollmentClientPhase.accepted) {
+            unawaited(HapticFeedback.mediumImpact().catchError((Object error) {
+              debugPrint('Sin vibración disponible: $error');
+            }));
+          }
+        }
+      },
+      onError: (Object error) {
+        debugPrint('Inscripción: error en la solicitud: $error');
+        if (!mounted) return;
+        setState(() {
+          _phase = EnrollmentClientPhase.timedOut;
+          _step = _JoinStep.done;
+        });
+        _releaseScreen();
+      },
+    );
+  }
+
+  Future<void> _cancelRequest() async {
+    await _updates?.cancel();
+    _updates = null;
+    await _client.cancel();
+    _releaseScreen();
+    if (mounted) setState(() => _step = _JoinStep.form);
+  }
+
+  void _retry() => setState(() => _step = _JoinStep.waiting);
+
+  void _close() => Navigator.of(context).pop(_enrollment);
+
+  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Enrolar Curso'),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: colors.onPrimary,
-          unselectedLabelColor: colors.onPrimary.withValues(
-            alpha: 0.7,
-          ),
-          indicatorColor: colors.secondary,
-          indicatorWeight: 3,
-          tabs: const <Tab>[
-            Tab(
-              icon: Icon(Icons.qr_code_scanner),
-              text: 'Cámara en Vivo',
-            ),
-            Tab(
-              icon: Icon(Icons.paste_rounded),
-              text: 'Pegar JSON Manual',
-            ),
-          ],
+    return switch (_step) {
+      _JoinStep.scan => _buildScan(context),
+      _JoinStep.form => _buildForm(context),
+      _JoinStep.waiting => BleReadyGate(
+          permissionService: _permissions,
+          title: 'Unirme a una clase',
+          subtitle: _invite?.courseName,
+          purpose: 'unirte a la clase',
+          onBack: () => setState(() => _step = _JoinStep.form),
+          onReady: _startRequest,
+          builder: _buildWaiting,
         ),
+      _JoinStep.done => _buildDone(context),
+    };
+  }
+
+  Widget _buildScan(BuildContext context) {
+    final c = UiColors.of(context);
+    return UiPage(
+      header: UiTopBar(
+        title: 'Unirme a una clase',
+        onBack: () => Navigator.of(context).pop(),
+        below: const UiStepBar(current: 1, total: 3),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: <Widget>[
-          _buildCameraScannerTab(context),
-          _buildManualPasteTab(context),
+      bottom: UiButton(label: 'Pegar el código', variant: UiButtonVariant.outline, onPressed: _showPasteSheet),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(UiSpace.page, UiSpace.sm, UiSpace.page, UiSpace.lg),
+        children: [
+          if (_scanError != null) ...[
+            UiBanner(tone: UiBannerTone.error, message: _scanError!),
+            const SizedBox(height: UiSpace.md),
+          ],
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: c.surface,
+                  borderRadius: BorderRadius.circular(UiRadius.xxl),
+                  border: Border.all(color: c.line),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    MobileScanner(
+                      controller: _scanner,
+                      onDetect: _onDetect,
+                      errorBuilder: (context, error) {
+                        debugPrint('Error de cámara: $error');
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(UiSpace.md),
+                            child: UiBanner(
+                              tone: UiBannerTone.warning,
+                              title: 'Cámara no disponible',
+                              message: 'Revisa el permiso de la cámara o pega el código de la clase.',
+                              actionLabel: 'Pegar el código',
+                              onAction: _showPasteSheet,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    Center(
+                      child: IgnorePointer(
+                        child: Container(
+                          width: 190,
+                          height: 190,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(UiRadius.lg),
+                            border: Border.all(color: c.primary, width: 3),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: UiSpace.md),
+          Text(
+            'Apunta al código QR que te muestra tu profesor.',
+            textAlign: TextAlign.center,
+            style: UiText.body.copyWith(color: c.muted),
+          ),
+          const SizedBox(height: UiSpace.md),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              UiRoundIconButton(
+                icon: _torchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                tooltip: _torchOn ? 'Apagar linterna' : 'Encender linterna',
+                onPressed: _toggleTorch,
+              ),
+              const SizedBox(width: UiSpace.md),
+              UiRoundIconButton(
+                icon: Icons.cameraswitch_rounded,
+                tooltip: 'Cambiar cámara',
+                onPressed: _switchCamera,
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildCameraScannerTab(BuildContext context) {
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-
-    return Stack(
-      children: <Widget>[
-        // Visor de cámara QR
-        MobileScanner(
-          controller: _scannerController,
-          onDetect: _handleBarcodeDetected,
-          errorBuilder: (context, error) {
-            return _buildCameraErrorView(context, error);
-          },
-          overlayBuilder: (context, constraints) {
-            return _buildScannerGuideOverlay(context, constraints);
-          },
-        ),
-
-        // Barra flotante de controles superiores
-        Positioned(
-          top: spacing.md,
-          right: spacing.md,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              FloatingActionButton.small(
-                heroTag: 'fab_torch',
-                backgroundColor: colors.surface.withValues(alpha: 0.75),
-                foregroundColor: _isTorchOn ? colors.secondary : colors.onSurface,
-                onPressed: _toggleTorch,
-                tooltip: _isTorchOn ? 'Apagar linterna' : 'Encender linterna',
-                child: Icon(_isTorchOn ? Icons.flash_on : Icons.flash_off),
-              ),
-              SizedBox(width: spacing.xs),
-              FloatingActionButton.small(
-                heroTag: 'fab_switch_camera',
-                backgroundColor: colors.surface.withValues(alpha: 0.75),
-                foregroundColor: colors.onSurface,
-                onPressed: _switchCamera,
-                tooltip: 'Cambiar cámara',
-                child: const Icon(Icons.cameraswitch_outlined),
-              ),
-            ],
-          ),
-        ),
-
-        // Indicador de procesamiento en curso
-        if (_isProcessing)
-          Container(
-            color: colors.surface.withValues(alpha: 0.65),
-            child: Center(
-              child: Card(
-                elevation: 4,
-                shape: radii.cardShape(),
-                child: Padding(
-                  padding: spacing.symmetric(
-                    horizontal: spacing.lg,
-                    vertical: spacing.md,
-                  ),
+  Widget _buildForm(BuildContext context) {
+    final c = UiColors.of(context);
+    final invite = _invite!;
+    return UiPage(
+      header: UiTopBar(
+        title: 'Unirme a una clase',
+        onBack: () => Navigator.of(context).pop(),
+        below: const UiStepBar(current: 2, total: 3),
+      ),
+      bottom: UiButton(label: 'Unirme', onPressed: _submitForm),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(UiSpace.page, UiSpace.sm, UiSpace.page, UiSpace.lg),
+        children: [
+          UiCard(
+            tone: UiTone.tint,
+            radius: UiRadius.lg,
+            child: Row(
+              children: [
+                UiAvatar(name: invite.courseName, square: true, tone: UiTone.primary),
+                const SizedBox(width: UiSpace.md),
+                Expanded(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      const CircularProgressIndicator(),
-                      SizedBox(height: spacing.md),
-                      const Text(
-                        'Procesando credencial...',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Te vas a unir a', style: UiText.label),
+                      Text(invite.courseName, style: UiText.title),
                     ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildScannerGuideOverlay(
-    BuildContext context,
-    BoxConstraints constraints,
-  ) {
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-    final double boxSize = (constraints.maxWidth * 0.72).clamp(220.0, 300.0);
-
-    return Stack(
-      children: <Widget>[
-        // Recuadro guía central
-        Center(
-          child: Container(
-            width: boxSize,
-            height: boxSize,
-            decoration: BoxDecoration(
-              borderRadius: radii.borderXl,
-              border: Border.all(
-                color: colors.primary,
-                width: 3,
-              ),
-            ),
-            child: Stack(
-              children: <Widget>[
-                // Ícono sutil central de guía
-                Center(
-                  child: Icon(
-                    Icons.qr_code_2,
-                    size: 80,
-                    color: colors.primary.withValues(alpha: 0.35),
                   ),
                 ),
               ],
             ),
           ),
-        ),
-
-        // Instrucción visual inferior
-        Positioned(
-          left: spacing.lg,
-          right: spacing.lg,
-          bottom: spacing.xl,
-          child: Center(
-            child: Container(
-              padding: spacing.symmetric(
-                horizontal: spacing.md,
-                vertical: spacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: colors.surface.withValues(alpha: 0.85),
-                borderRadius: radii.borderMd,
-              ),
-              child: Text(
-                'Apunta la cámara al código QR que tu docente\nmuestra en su pantalla.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: colors.onSurface,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  height: 1.3,
-                ),
-              ),
+          const SizedBox(height: UiSpace.xl),
+          TextField(
+            controller: _code,
+            keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.next,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(12)],
+            decoration: InputDecoration(
+              labelText: 'Tu código estudiantil',
+              hintText: 'Ej. 0182120016',
+              errorText: _codeError,
             ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCameraErrorView(
-    BuildContext context,
-    MobileScannerException error,
-  ) {
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-
-    return Center(
-      child: Padding(
-        padding: spacing.insetsLg,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              Icons.no_photography_outlined,
-              size: 64,
-              color: colors.statusAlerta,
-            ),
-            SizedBox(height: spacing.md),
-            Text(
-              'No se pudo inicializar la cámara',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: colors.onSurface,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: spacing.xs),
-            Text(
-              'Verifica que la aplicación tenga permisos de cámara o utiliza '
-              'la pestaña de ingreso manual.',
-              style: TextStyle(
-                fontSize: 13,
-                color: colors.onSurfaceMuted,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: spacing.lg),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(shape: radii.buttonShape()),
-              onPressed: () {
-                _tabController.animateTo(1);
-              },
-              icon: const Icon(Icons.paste_rounded),
-              label: const Text('Usar Pegado Manual de JSON'),
-            ),
-          ],
-        ),
+          const SizedBox(height: UiSpace.md),
+          TextField(
+            controller: _name,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submitForm(),
+            decoration: InputDecoration(labelText: 'Tu nombre', hintText: 'Como quieres verlo en la app', errorText: _nameError),
+          ),
+          const SizedBox(height: UiSpace.md),
+          Text(
+            'El nombre es solo para ti. Tu profesor te identifica por el código.',
+            style: UiText.label.copyWith(color: c.muted),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildManualPasteTab(BuildContext context) {
-    final colors = AppColors.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-
-    return SingleChildScrollView(
-      padding: spacing.insetsLg,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 500),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            // Tarjeta informativa de respaldo
-            Container(
-              padding: spacing.insetsMd,
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHigh,
-                borderRadius: radii.borderMd,
-                border: Border.all(
-                  color: colors.outlineVariant,
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Icon(
-                    Icons.info_outline,
-                    color: colors.primary,
-                    size: 22,
-                  ),
-                  SizedBox(width: spacing.xs),
-                  Expanded(
-                    child: Text(
-                      'Modo de Respaldo: Si la cámara de tu teléfono presenta fallas '
-                      'físicas o requieres realizar pruebas, pega directamente '
-                      'aquí la cadena JSON que compone el QR del docente.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        height: 1.35,
+  Widget _buildWaiting(BuildContext context) {
+    final c = UiColors.of(context);
+    final pending = _phase == EnrollmentClientPhase.pending;
+    return UiPage(
+      header: UiTopBar(
+        title: _invite!.courseName,
+        titleMaxLines: 1,
+        close: true,
+        backTooltip: 'Cancelar',
+        onBack: _cancelRequest,
+        below: const UiStepBar(current: 3, total: 3),
+      ),
+      bottom: UiButton(label: 'Cancelar', variant: UiButtonVariant.outline, onPressed: _cancelRequest),
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: UiSpace.lg),
+        children: [
+          UiPageHeading(title: pending ? 'Tu profesor está revisando tu solicitud' : 'Buscando a tu profesor'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: UiSpace.page),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                UiCard(
+                  tone: UiTone.tint,
+                  radius: UiRadius.xxl,
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          spacing: UiSpace.sm,
+                          runSpacing: UiSpace.sm,
+                          children: [
+                            UiPill(label: 'Código ${_code.text.trim()}', background: c.surface, foreground: c.ink),
+                            UiPill(
+                              label: pending ? 'Esperando aprobación' : 'Enviando solicitud',
+                              dot: true,
+                              tone: UiTone.primary,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: UiSpace.xxl),
+                      UiTwoPhones(signal: pending ? 3 : 2),
+                    ],
                   ),
+                ),
+                const SizedBox(height: UiSpace.lg),
+                Text(
+                  pending
+                      ? 'Tu código no estaba en su lista o ya tenía otro celular. Acércate y dile quién eres.'
+                      : 'Quédate en el salón con esta pantalla abierta. Tu profesor debe tener abierto «Inscribir estudiantes».',
+                  style: UiText.body.copyWith(color: c.muted),
+                ),
+                if (_bleIssue != null) ...[
+                  const SizedBox(height: UiSpace.md),
+                  UiBanner(tone: UiBannerTone.warning, message: _bleIssue!),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDone(BuildContext context) {
+    final c = UiColors.of(context);
+    if (_phase == EnrollmentClientPhase.accepted) {
+      return UiPage(
+        header: UiTopBar(title: 'Unirme a una clase', onBack: _close, close: true),
+        bottom: UiButton(label: 'Ir a mis clases', onPressed: _close),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(UiSpace.page, UiSpace.md, UiSpace.page, UiSpace.lg),
+          children: [
+            UiHeroCard(
+              motifSize: 220,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(color: c.onPrimary, shape: BoxShape.circle),
+                    child: Icon(Icons.check_rounded, size: 34, color: c.primary),
+                  ),
+                  const SizedBox(height: 72),
+                  const Text('Ya estás en', style: UiText.bodyStrong),
+                  Text(_invite!.courseName, style: UiText.h1),
                 ],
               ),
             ),
-            SizedBox(height: spacing.md),
-
-            // Acciones rápidas de portapapeles
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(shape: radii.buttonShape()),
-                    onPressed: _pasteFromClipboard,
-                    icon: const Icon(Icons.paste_rounded, size: 18),
-                    label: const Text('Pegar Portapapeles'),
-                  ),
-                ),
-                SizedBox(width: spacing.xs),
-                TextButton.icon(
-                  onPressed: () => _manualJsonController.clear(),
-                  icon: const Icon(Icons.clear, size: 18),
-                  label: const Text('Limpiar'),
-                ),
+            const SizedBox(height: UiSpace.md),
+            UiListGroup(
+              children: [
+                UiInfoRow(label: 'Código', value: _code.text.trim()),
+                UiInfoRow(label: 'Tu nombre', value: _name.text.trim()),
               ],
             ),
-            SizedBox(height: spacing.sm),
-
-            // Campo de texto multilínea para el JSON
-            TextField(
-              controller: _manualJsonController,
-              maxLines: 8,
-              minLines: 5,
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-              ),
-              decoration: InputDecoration(
-                labelText: 'Contenido JSON del QR *',
-                hintText:
-                    '{"courseId": "...", "studentCode": "...", "bitmapIndex": 0, ...}',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder(borderRadius: radii.borderMd),
-              ),
-            ),
-            SizedBox(height: spacing.lg),
-
-            // Botón de procesamiento
-            FilledButton.icon(
-              onPressed: _isProcessing
-                  ? null
-                  : () => _processEnrollmentPayload(_manualJsonController.text),
-              icon: _isProcessing
-                  ? SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colors.onPrimary,
-                      ),
-                    )
-                  : const Icon(Icons.cloud_done_outlined),
-              label: Text(
-                _isProcessing
-                    ? 'Procesando...'
-                    : 'Procesar y Enrolar Credencial',
-              ),
-              style: FilledButton.styleFrom(
-                padding: spacing.insetsVMd,
-                shape: radii.buttonShape(),
-              ),
+            const SizedBox(height: UiSpace.lg),
+            Text(
+              'Desde ahora, en cada clase solo escribes el PIN y acercas el celular.',
+              style: UiText.body.copyWith(color: c.muted),
             ),
           ],
         ),
+      );
+    }
+
+    final (IconData icon, String title, String message) = switch (_phase) {
+      EnrollmentClientPhase.rejected => (
+          Icons.person_off_outlined,
+          'Tu profesor no aprobó la solicitud',
+          'Habla con él y vuelve a intentarlo.',
+        ),
+      EnrollmentClientPhase.classFull => (
+          Icons.groups_2_outlined,
+          'La clase ya está completa',
+          'Una clase admite hasta 64 estudiantes. Habla con tu profesor.',
+        ),
+      _ => (
+          Icons.bluetooth_searching_rounded,
+          'No encontramos a tu profesor',
+          'Acércate y pídele que abra «Inscribir estudiantes». Luego inténtalo de nuevo.',
+        ),
+    };
+    return UiPage(
+      header: UiTopBar(title: 'Unirme a una clase', onBack: () => Navigator.of(context).pop(), close: true),
+      body: UiEmptyState(
+        icon: icon,
+        title: title,
+        message: message,
+        actionLabel: 'Intentar de nuevo',
+        onAction: _retry,
       ),
     );
   }

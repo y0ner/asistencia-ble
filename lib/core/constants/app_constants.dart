@@ -1,15 +1,8 @@
-/// Constantes globales del dominio de asistencia de Uniguajira.
+/// Constantes globales del protocolo y dominio de AsistenciaBLE.
 ///
 /// Centraliza los parámetros del protocolo (ventana HMAC, tamaño del Bitmap,
-/// umbral de proximidad y dominio institucional) para que ninguna capa
-/// introduzca valores mágicos.
+/// umbral de proximidad) para que ninguna capa introduzca valores mágicos.
 abstract final class AppConstants {
-  /// Nombre visible de la aplicación.
-  static const String appName = 'Asistencia Uniguajira';
-
-  /// Dominio institucional autorizado para la sincronización con Google.
-  static const String institutionalDomain = '@uniguajira.edu.co';
-
   /// Ventana de rotación de la etiqueta HMAC-SHA256, en segundos.
   static const int hmacRotationSeconds = 30;
 
@@ -38,6 +31,10 @@ abstract final class AppConstants {
   static const int minRssiDbm = defaultMinRssi;
 
   /// Longitud del PIN verbal de la sesión (2 dígitos).
+  /// Umbral de señal para la inscripción: basta con estar en el salón (la
+  /// asistencia sí exige cercanía con [minRssiDbm]).
+  static const int enrollmentMinRssiDbm = -95;
+
   static const int roomPinLength = 2;
 
   /// PIN verbal mínimo que puede generar el docente.
@@ -56,6 +53,14 @@ abstract final class AppConstants {
   static const String attendanceMethodManualInverted = 'MANUAL_INVERTED';
 
   /// Estado de un estudiante presente en el acta de cierre.
+  /// Estado de un estudiante dentro de la clase.
+  static const String studentStatusActive = 'active';
+  static const String studentStatusRetired = 'retired';
+
+  /// Cómo llegó el estudiante a la clase.
+  static const String studentOriginRoster = 'roster';
+  static const String studentOriginAddedInClass = 'added_in_class';
+
   static const String attendanceStatusPresent = 'PRESENT';
 
   /// Estado de un estudiante ausente en el acta de cierre.
@@ -65,5 +70,5 @@ abstract final class AppConstants {
   static const String databaseName = 'asistencia_uniguajira.db';
 
   /// Versión del esquema SQLite.
-  static const int databaseVersion = 3;
+  static const int databaseVersion = 4;
 }

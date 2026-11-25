@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="640" font-family="Figtree, sans-serif" role="img" aria-label="Una hoja de asistencia firmada lista para enviar">
+  <rect width="320" height="220" fill="#E3F1F3"/>
+  <rect x="78" y="22" width="132" height="176" rx="16" fill="#FFFFFF" stroke="#10262B" stroke-width="3"></rect>
+  <rect x="94" y="40" width="100" height="18" rx="6" fill="#1F7A87"></rect>
+  <rect x="94" y="66" width="52" height="8" rx="4" fill="#10262B"></rect>
+  <rect x="94" y="84" width="60" height="8" rx="4" fill="#10262B"></rect>
+  <rect x="94" y="102" width="44" height="8" rx="4" fill="#10262B"></rect>
+  <rect x="94" y="120" width="56" height="8" rx="4" fill="#10262B"></rect>
+  <circle cx="172" cy="70" r="5" fill="#1F7A87"></circle>
+  <circle cx="188" cy="70" r="5" fill="#1F7A87"></circle>
+  <circle cx="172" cy="88" r="5" fill="#1F7A87"></circle>
+  <circle cx="188" cy="88" r="5" fill="none" stroke="#D46454" stroke-width="2"></circle>
+  <circle cx="172" cy="106" r="5" fill="#1F7A87"></circle>
+  <circle cx="188" cy="106" r="5" fill="#1F7A87"></circle>
+  <circle cx="172" cy="124" r="5" fill="none" stroke="#D46454" stroke-width="2"></circle>
+  <circle cx="188" cy="124" r="5" fill="#1F7A87"></circle>
+  <path d="M94 146 h100" stroke="#DDE5E6" stroke-width="2" fill="none"></path>
+  <circle cx="110" cy="172" r="14" fill="#1F7A87"></circle>
+  <path d="M103 172 l5 5 l9 -10" stroke="#FFFFFF" stroke-width="3.200" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  <rect x="134" y="162" width="56" height="8" rx="4" fill="#10262B"></rect>
+  <rect x="134" y="176" width="36" height="7" rx="3.500" fill="#51666B" opacity="0.6"></rect>
+  <circle cx="238" cy="60" r="28" fill="#E8A44C"></circle>
+  <path d="M227 71 l22 -22 M233 49 h16 v16" stroke="#10262B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+</svg>

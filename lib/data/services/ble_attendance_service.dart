@@ -1,11 +1,47 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/crypto/ble_packet_codec.dart';
+
+/// Categoría de una anomalía o falla en tiempo de ejecución del radar BLE.
+enum BleRuntimeIssueType {
+  /// Falla al iniciar, reconfigurar o detener la emisión BLE.
+  advertising,
+
+  /// Falla en el escáner central o recepción de paquetes.
+  scan,
+
+  /// El adaptador Bluetooth del dispositivo está apagado o no disponible.
+  adapterOff,
+
+  /// Faltan permisos del sistema para operar el transceptor BLE.
+  permission,
+}
+
+/// Incidencia en tiempo de ejecución de BLE con mensaje legible en español.
+class BleRuntimeIssue {
+  const BleRuntimeIssue({
+    required this.type,
+    required this.message,
+    this.cause,
+  });
+
+  /// Tipo de falla ocurrida.
+  final BleRuntimeIssueType type;
+
+  /// Explicación clara en español para banners de usuario o depuración.
+  final String message;
+
+  /// Causa técnica subyacente (excepción o estado), si existe.
+  final Object? cause;
+
+  @override
+  String toString() => '$message${cause != null ? " ($cause)" : ""}';
+}
 
 /// Evento BLE validado que contiene un paquete de 16 bytes y su RSSI.
 class BlePacketEvent {
@@ -21,24 +57,69 @@ class BlePacketEvent {
 /// Transceptor BLE del proyecto.
 ///
 /// En emisión usa `flutter_ble_peripheral` y publica los 16 bytes dentro de un
-/// Service UUID de 128 bits, evitando el límite de 31 bytes del advertising
-/// Legacy de Android. En recepción usa `flutter_blue_plus`, descarta anuncios
-/// por debajo de [minRssiDbm] y emite los paquetes válidos por un [Stream].
+/// Service UUID de 128 bits, serializando las llamadas y deteniendo anuncios
+/// previos para evitar agotar anunciantes nativos en Android.
+/// En recepción usa `flutter_blue_plus`, descarta anuncios por debajo de
+/// [minRssiDbm] y emite los paquetes válidos por un [Stream].
 class BleAttendanceService {
   BleAttendanceService({
     FlutterBlePeripheral? peripheral,
     this.minRssiDbm = AppConstants.minRssiDbm,
-  }) : _peripheral = peripheral ?? FlutterBlePeripheral();
+    this.duplicateWindow = const Duration(seconds: 2),
+    DateTime Function()? now,
+    Stream<BluetoothAdapterState>? adapterStates,
+    this.startScanOverride,
+  })  : _peripheral = peripheral ?? FlutterBlePeripheral(),
+        _now = now ?? DateTime.now,
+        _adapterStatesStream = adapterStates {
+    if (adapterStates != null) {
+      _listenAdapterState();
+    }
+  }
 
   final FlutterBlePeripheral _peripheral;
   final StreamController<BlePacketEvent> _packetController =
       StreamController<BlePacketEvent>.broadcast();
+  final StreamController<BleRuntimeIssue> _issuesController =
+      StreamController<BleRuntimeIssue>.broadcast();
 
   /// Umbral mínimo de RSSI aceptado por el radar.
   final int minRssiDbm;
 
+  /// Ajustes de emisión en Android. Sin ellos, Android usa su modo de bajo
+  /// consumo (≈1 anuncio por segundo, potencia media): un fragmento de
+  /// inscripción que solo dura 400 ms podía no salir nunca al aire y el
+  /// beacon tardaba en llegar. Baja latencia ≈ un anuncio cada 100 ms; no
+  /// conectable porque nadie se conecta por GATT.
+  static const AndroidAdvertiseSettings androidAdvertiseSettings =
+      AndroidAdvertiseSettings(
+    advertiseSettings: AdvertiseSettings(
+      advertiseMode: AdvertiseMode.advertiseModeLowLatency,
+      txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
+      connectable: false,
+      timeout: 0,
+    ),
+  );
+
+  /// Ventana de tiempo durante la cual se descartan paquetes idénticos.
+  final Duration duplicateWindow;
+
+  final DateTime Function() _now;
+  final Stream<BluetoothAdapterState>? _adapterStatesStream;
+
+  /// Invocación alternativa para pruebas sin tocar canales nativos de escaneo.
+  final Future<void> Function()? startScanOverride;
+
+  final Map<String, DateTime> _lastEmittedByPacket = <String, DateTime>{};
+
   StreamSubscription<List<ScanResult>>? _scanSubscription;
+  StreamSubscription<BluetoothAdapterState>? _adapterSubscription;
   bool _isAdvertising = false;
+  Uint8List? _lastAdvertisedPacket;
+  Uint8List? _desiredAdvertisedPacket;
+  Duration? _lastScanTimeout;
+  bool _wasAdapterOff = false;
+  Future<void> _adQueue = Future<void>.value();
   bool _disposed = false;
 
   /// Eventos BLE validados, con su RSSI original.
@@ -51,8 +132,17 @@ class BleAttendanceService {
   /// Alias corto de [packetStream] para consumidores del radar.
   Stream<Uint8List> get packets => packetStream;
 
+  /// Canal de incidencias y errores en español generados por el runtime BLE.
+  Stream<BleRuntimeIssue> get issues => _issuesController.stream;
+
+  /// Alias de conveniencia para [issues].
+  Stream<BleRuntimeIssue> get runtimeIssues => _issuesController.stream;
+
   /// Indica si este servicio mantiene una escucha de escaneo activa.
   bool get isScanning => _scanSubscription != null;
+
+  /// Indica si hay una emisión publicitaria BLE activa.
+  bool get isAdvertising => _isAdvertising;
 
   /// Inicia el escaneo BLE y publica cada paquete de 16 bytes recibido.
   ///
@@ -64,6 +154,8 @@ class BleAttendanceService {
       return;
     }
 
+    _lastScanTimeout = timeout;
+
     _scanSubscription = FlutterBluePlus.onScanResults.listen(
       (List<ScanResult> results) {
         for (final ScanResult result in results) {
@@ -71,20 +163,42 @@ class BleAttendanceService {
         }
       },
       onError: (Object error, StackTrace stackTrace) {
+        _reportIssue(
+          BleRuntimeIssue(
+            type: BleRuntimeIssueType.scan,
+            message: 'Error en la recepción del escaneo BLE: $error',
+            cause: error,
+          ),
+        );
         if (!_packetController.isClosed) {
           _packetController.addError(error, stackTrace);
         }
       },
     );
 
+    _listenAdapterState();
+
+    final scanOverride = startScanOverride;
     try {
-      await FlutterBluePlus.startScan(
-        timeout: timeout,
-        continuousUpdates: true,
-      );
-    } catch (_) {
+      if (scanOverride != null) {
+        await scanOverride();
+      } else {
+        await FlutterBluePlus.startScan(
+          timeout: timeout,
+          continuousUpdates: true,
+          oneByOne: true,
+        );
+      }
+    } catch (error) {
       await _scanSubscription?.cancel();
       _scanSubscription = null;
+      _reportIssue(
+        BleRuntimeIssue(
+          type: BleRuntimeIssueType.scan,
+          message: 'Fallo al iniciar el escaneo BLE: $error',
+          cause: error,
+        ),
+      );
       rethrow;
     }
   }
@@ -95,23 +209,111 @@ class BleAttendanceService {
     _scanSubscription = null;
     await subscription?.cancel();
     if (subscription != null) {
-      await FlutterBluePlus.stopScan();
+      try {
+        await FlutterBluePlus.stopScan();
+      } catch (error) {
+        _reportIssue(
+          BleRuntimeIssue(
+            type: BleRuntimeIssueType.scan,
+            message: 'Error al detener el escaneo BLE: $error',
+            cause: error,
+          ),
+        );
+      }
     }
   }
 
   /// Publica un paquete de 16 bytes como Service UUID de 128 bits.
   ///
-  /// No se configura `localName`, por lo que el nombre del dispositivo no se
-  /// incluye en el anuncio y el payload queda limitado a 16 bytes.
+  /// Serializa todas las solicitudes en una cola para evitar concurrencia en el
+  /// periférico. Si ya hay un anuncio activo, lo detiene y espera antes de
+  /// iniciar el siguiente. Si el paquete es idéntico al anunciado actualmente,
+  /// no reinicia el anuncio.
   Future<void> startAdvertisingPacket(Uint8List packet16) async {
     _ensureNotDisposed();
     _validatePacket(packet16);
-    await _peripheral.start(
-      advertiseData: AdvertiseDataCore(
-        serviceUuid: BlePacketCodec.bytes16ToUuid(packet16),
-      ),
-    );
-    _isAdvertising = true;
+    _listenAdapterState();
+
+    final targetPacket = Uint8List.fromList(packet16);
+    _desiredAdvertisedPacket = targetPacket;
+    final completer = Completer<void>();
+
+    _adQueue = _adQueue.then((_) async {
+      try {
+        await _executeAdvertisingPacket(targetPacket);
+        completer.complete();
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+
+    return completer.future;
+  }
+
+  Future<void> _executeAdvertisingPacket(Uint8List packet16) async {
+    _ensureNotDisposed();
+
+    // 2. Reemitir solo si cambia algo:
+    // Si el paquete es idéntico al que ya se está anunciando, no reiniciar.
+    if (_isAdvertising &&
+        _lastAdvertisedPacket != null &&
+        _areBytesEqual(_lastAdvertisedPacket!, packet16)) {
+      return;
+    }
+
+    // 1. Anuncio sin fugas:
+    // Si ya hay un anuncio activo, detenlo y espera antes de iniciar el siguiente.
+    if (_isAdvertising) {
+      try {
+        await _peripheral.stop();
+      } catch (error) {
+        _reportIssue(
+          BleRuntimeIssue(
+            type: BleRuntimeIssueType.advertising,
+            message: 'Error al detener anuncio BLE anterior: $error',
+            cause: error,
+          ),
+        );
+      } finally {
+        _isAdvertising = false;
+        _lastAdvertisedPacket = null;
+      }
+    }
+
+    try {
+      final state = await _peripheral.start(
+        advertiseData: AdvertiseDataCore(
+          serviceUuid: BlePacketCodec.bytes16ToUuid(packet16),
+        ),
+        androidSettings: androidAdvertiseSettings,
+      );
+
+      // Confirmar que el periférico quedó activo
+      if (state != PeripheralBluetoothState.ready) {
+        final issue = BleRuntimeIssue(
+          type: BleRuntimeIssueType.advertising,
+          message:
+              'No se pudo activar el anuncio BLE (estado: ${state.name}).',
+          cause: state,
+        );
+        _reportIssue(issue);
+        throw StateError(issue.message);
+      }
+
+      _isAdvertising = true;
+      _lastAdvertisedPacket = packet16;
+    } catch (error) {
+      _isAdvertising = false;
+      _lastAdvertisedPacket = null;
+      _reportIssue(
+        BleRuntimeIssue(
+          type: BleRuntimeIssueType.advertising,
+          message: 'Fallo al iniciar el anuncio BLE: $error',
+          cause: error,
+        ),
+      );
+      rethrow;
+    }
   }
 
   /// Construye y anuncia el paquete de estudiante para la sesión actual.
@@ -135,52 +337,192 @@ class BleAttendanceService {
   /// Construye y anuncia el eco del docente con el Bitmap de la sesión.
   Future<void> startTeacherEcho({
     required String courseId,
-    required String sessionId,
+    required int sessionPin,
     required Uint8List bitmap8,
     required String sharedSecretHex,
+    int? timeTick,
   }) {
     final packet = BlePacketCodec.buildTeacherEchoBytes(
       courseId: courseId,
-      sessionId: sessionId,
+      sessionPin: sessionPin,
       bitmap8: bitmap8,
       sharedSecretHex: sharedSecretHex,
+      timeTick: timeTick ?? BlePacketCodec.computeTimeTick(DateTime.now()),
     );
     return startAdvertisingPacket(packet);
   }
 
-  /// Detiene el anuncio BLE activo.
+  /// Detiene el anuncio BLE activo esperando a que la cola complete.
   Future<void> stopAdvertising() async {
-    if (!_isAdvertising) {
-      return;
-    }
-    try {
-      await _peripheral.stop();
-    } finally {
-      _isAdvertising = false;
-    }
+    _desiredAdvertisedPacket = null;
+    final completer = Completer<void>();
+    _adQueue = _adQueue.then((_) async {
+      try {
+        if (_isAdvertising) {
+          try {
+            await _peripheral.stop();
+          } catch (error) {
+            _reportIssue(
+              BleRuntimeIssue(
+                type: BleRuntimeIssueType.advertising,
+                message: 'Error al detener anuncio BLE: $error',
+                cause: error,
+              ),
+            );
+          } finally {
+            _isAdvertising = false;
+            _lastAdvertisedPacket = null;
+          }
+        }
+        completer.complete();
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
+  }
+
+  /// Procesa un paquete anunciado por la misma ruta que un resultado de escaneo,
+  /// aplicando validación de tamaño, umbral RSSI y filtro de duplicados.
+  @visibleForTesting
+  void debugHandleAdvertisedPacket(Uint8List packet16, int rssi) {
+    _emitIfNearby(packet16, rssi);
   }
 
   /// Inyecta un paquete simulado para pruebas deterministas sin hardware BLE.
   ///
   /// Devuelve `true` solo si el paquete mide 16 bytes y supera el umbral RSSI.
-  bool injectSimulatedPacket({required Uint8List packet16, required int rssi}) {
+  bool injectSimulatedPacket({
+    required Uint8List packet16,
+    required int rssi,
+    bool filterDuplicates = false,
+  }) {
     if (_disposed || packet16.length != BlePacketCodec.packetLength) {
       return false;
     }
-    return _emitIfNearby(packet16, rssi);
+    return _emitIfNearby(packet16, rssi, filterDuplicates: filterDuplicates);
   }
 
-  /// Detiene emisión y escaneo, y cierra el Stream de eventos.
+  /// Inyecta una incidencia simulada para pruebas deterministas.
+  void injectSimulatedIssue(BleRuntimeIssue issue) {
+    if (!_disposed) {
+      _reportIssue(issue);
+    }
+  }
+
+  /// Detiene emisión y escaneo, y cierra los Streams de eventos e incidencias.
   Future<void> dispose() async {
     if (_disposed) {
       return;
     }
     _disposed = true;
+    _desiredAdvertisedPacket = null;
     await stopScan();
+    await _adapterSubscription?.cancel();
+    _adapterSubscription = null;
     try {
       await stopAdvertising();
     } finally {
       await _packetController.close();
+      await _issuesController.close();
+    }
+  }
+
+  void _listenAdapterState() {
+    if (_adapterSubscription != null || _disposed) return;
+    try {
+      final stream = _adapterStatesStream ?? FlutterBluePlus.adapterState;
+      _adapterSubscription = stream.listen(
+        (BluetoothAdapterState state) {
+          _handleAdapterStateChange(state);
+        },
+        onError: (Object error) {
+          _reportIssue(
+            BleRuntimeIssue(
+              type: BleRuntimeIssueType.adapterOff,
+              message:
+                  'Error al monitorear el adaptador Bluetooth: $error',
+              cause: error,
+            ),
+          );
+        },
+      );
+    } catch (error) {
+      debugPrint(
+        'No se pudo monitorear el estado del adaptador Bluetooth: $error. '
+        'Se continuará sin monitoreo reactivo del adaptador.',
+      );
+    }
+  }
+
+  void _handleAdapterStateChange(BluetoothAdapterState state) {
+    if (state != BluetoothAdapterState.on) {
+      _wasAdapterOff = true;
+      _isAdvertising = false;
+      _lastAdvertisedPacket = null;
+      _reportIssue(
+        BleRuntimeIssue(
+          type: BleRuntimeIssueType.adapterOff,
+          message:
+              'El adaptador Bluetooth no está encendido ($state).',
+          cause: state,
+        ),
+      );
+    } else {
+      if (_wasAdapterOff) {
+        _wasAdapterOff = false;
+        _recoverAfterAdapterOn();
+      }
+    }
+  }
+
+  void _recoverAfterAdapterOn() {
+    if (_disposed) return;
+
+    if (_scanSubscription != null) {
+      unawaited(_restartScanAfterAdapterOn());
+    }
+
+    if (_desiredAdvertisedPacket != null) {
+      final packetToReannounce = _desiredAdvertisedPacket!;
+      _adQueue = _adQueue.then((_) async {
+        if (_disposed || _desiredAdvertisedPacket == null) return;
+        try {
+          await _executeAdvertisingPacket(packetToReannounce);
+        } catch (error) {
+          // _executeAdvertisingPacket ya lo reportó por `issues`.
+          debugPrint('No se pudo reanunciar tras encender el Bluetooth: $error');
+        }
+      });
+    }
+  }
+
+  Future<void> _restartScanAfterAdapterOn() async {
+    final scanOverride = startScanOverride;
+    try {
+      if (scanOverride != null) {
+        await scanOverride();
+      } else {
+        await FlutterBluePlus.startScan(
+          timeout: _lastScanTimeout,
+          continuousUpdates: true,
+          oneByOne: true,
+        );
+      }
+    } catch (error) {
+      _reportIssue(
+        BleRuntimeIssue(
+          type: BleRuntimeIssueType.scan,
+          message: 'Fallo al reiniciar el escaneo BLE: $error',
+          cause: error,
+        ),
+      );
+    }
+  }
+
+  void _reportIssue(BleRuntimeIssue issue) {
+    if (!_issuesController.isClosed) {
+      _issuesController.add(issue);
     }
   }
 
@@ -198,16 +540,51 @@ class BleAttendanceService {
     }
   }
 
-  bool _emitIfNearby(Uint8List packet16, int rssi) {
+  bool _emitIfNearby(
+    Uint8List packet16,
+    int rssi, {
+    bool filterDuplicates = true,
+  }) {
     if (_disposed ||
         packet16.length != BlePacketCodec.packetLength ||
         rssi < minRssiDbm) {
       return false;
     }
+
+    if (filterDuplicates) {
+      final key = BlePacketCodec.bytes16ToUuid(packet16);
+      final currentTime = _now();
+      final lastEmitted = _lastEmittedByPacket[key];
+
+      if (lastEmitted != null &&
+          currentTime.difference(lastEmitted) < duplicateWindow) {
+        return false;
+      }
+
+      _lastEmittedByPacket[key] = currentTime;
+      if (_lastEmittedByPacket.length > 256) {
+        _pruneOldPackets(currentTime);
+      }
+    }
+
     _packetController.add(
       BlePacketEvent(packet16: Uint8List.fromList(packet16), rssi: rssi),
     );
     return true;
+  }
+
+  void _pruneOldPackets(DateTime currentTime) {
+    _lastEmittedByPacket.removeWhere(
+      (_, DateTime time) => currentTime.difference(time) >= duplicateWindow,
+    );
+    if (_lastEmittedByPacket.length > 256) {
+      final sortedEntries = _lastEmittedByPacket.entries.toList()
+        ..sort((a, b) => a.value.compareTo(b.value));
+      final excess = sortedEntries.length - 256;
+      for (var i = 0; i < excess; i++) {
+        _lastEmittedByPacket.remove(sortedEntries[i].key);
+      }
+    }
   }
 
   void _ensureNotDisposed() {
@@ -225,5 +602,14 @@ class BleAttendanceService {
             '${BlePacketCodec.packetLength} bytes.',
       );
     }
+  }
+
+  static bool _areBytesEqual(Uint8List a, Uint8List b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 }

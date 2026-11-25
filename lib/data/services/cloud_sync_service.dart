@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import '../../core/constants/app_constants.dart';
+import '../../core/config/institution_config.dart';
 import '../local/app_database.dart';
 import 'excel_report_service.dart';
 
@@ -219,7 +219,7 @@ class CloudSyncResult {
   }
 }
 
-/// Servicio de sincronización institucional con cuentas `@uniguajira.edu.co`.
+/// Servicio de sincronización con cuentas de Google en la nube institucional.
 ///
 /// La generación del paquete es local y funciona sin red. El envío real se
 /// inyecta mediante [syncCourseToInstitutionalCloud.transportOverride], lo que
@@ -229,19 +229,29 @@ class CloudSyncService {
   CloudSyncService({
     AppDatabase? database,
     ExcelReportService? excelReportService,
-  }) : _excelReportService =
+    InstitutionProfile? institution,
+  }) : _institution = institution ?? InstitutionConfig.current,
+       _excelReportService =
            excelReportService ??
-           ExcelReportService(database: database ?? AppDatabase.instance);
+           ExcelReportService(
+             database: database ?? AppDatabase.instance,
+             institution: institution ?? InstitutionConfig.current,
+           );
 
   final ExcelReportService _excelReportService;
+  final InstitutionProfile _institution;
 
   /// Generador de reportes utilizado por la sincronización.
   ExcelReportService get excelReportService => _excelReportService;
 
-  /// Valida que [email] sea una cuenta institucional de La Guajira.
+  /// Perfil institucional utilizado para validar el correo y los reportes.
+  InstitutionProfile get institution => _institution;
+
+  /// Valida que [email] sea una cuenta institucional autorizada.
   ///
-  /// Acepta mayúsculas y minúsculas, pero exige exactamente el dominio de
-  /// [AppConstants.institutionalDomain] y una parte local no vacía.
+  /// Acepta mayúsculas y minúsculas. Si la institución define un dominio exacto
+  /// en [InstitutionProfile.emailDomain], se exige dicha terminación. De lo
+  /// contrario, admite cualquier dominio estructurado con al menos un punto.
   bool isValidInstitutionalEmail(String email) {
     final normalized = email.trim();
     if (normalized.isEmpty || normalized.contains(RegExp(r'\s'))) {
@@ -254,16 +264,28 @@ class CloudSyncService {
     }
 
     final localPart = normalized.substring(0, atIndex);
-    final domain = normalized.substring(atIndex).toLowerCase();
-    if (domain != AppConstants.institutionalDomain.toLowerCase()) {
-      return false;
-    }
     if (!RegExp(r'^[A-Za-z0-9._%+-]+$').hasMatch(localPart)) {
       return false;
     }
     if (localPart.startsWith('.') ||
         localPart.endsWith('.') ||
         localPart.contains('..')) {
+      return false;
+    }
+
+    final expectedDomain = _institution.emailDomain;
+    if (expectedDomain != null) {
+      final domain = normalized.substring(atIndex).toLowerCase();
+      return domain == expectedDomain.toLowerCase();
+    }
+
+    final domainWithoutAt = normalized.substring(atIndex + 1);
+    if (domainWithoutAt.isEmpty ||
+        !domainWithoutAt.contains('.') ||
+        domainWithoutAt.startsWith('.') ||
+        domainWithoutAt.endsWith('.') ||
+        domainWithoutAt.contains('..') ||
+        !RegExp(r'^[A-Za-z0-9.-]+$').hasMatch(domainWithoutAt)) {
       return false;
     }
     return true;
@@ -298,11 +320,13 @@ class CloudSyncService {
   }) async {
     final normalizedEmail = institutionalEmail.trim();
     if (!isValidInstitutionalEmail(normalizedEmail)) {
+      final domainMessage = _institution.emailDomain != null
+          ? 'pertenecer al dominio ${_institution.emailDomain}.'
+          : 'ser una dirección de correo válida.';
       throw ArgumentError.value(
         institutionalEmail,
         'institutionalEmail',
-        'La cuenta debe pertenecer al dominio '
-            '${AppConstants.institutionalDomain}.',
+        'La cuenta debe $domainMessage',
       );
     }
 

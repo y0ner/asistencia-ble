@@ -1,5 +1,5 @@
 name: asistencia_uniguajira
-description: "Registro y control de asistencia académica Offline-First de la Universidad de La Guajira."
+description: "AsistenciaBLE: registro de asistencia por proximidad Bluetooth (BLE), sin servidor y sin conexión, para instituciones de educación superior."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -40,6 +40,11 @@ dependencies:
   # Utilidades de formato e identificadores.
   intl: ^0.20.3
   uuid: ^4.6.0
+  wakelock_plus: ^1.8.2
+  share_plus: ^13.3.1
+  device_info_plus: ^13.3.0
+  cryptography: ^2.9.0
+  shared_preferences: ^2.5.6
 
 dev_dependencies:
   flutter_test:
@@ -47,6 +52,27 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   # Driver FFI: permite ejecutar las pruebas de SQLite en Linux sin dispositivo.
   sqflite_common_ffi: ^2.4.5
+  # Interfaz del plugin de pantalla encendida, para reemplazarlo en pruebas.
+  wakelock_plus_platform_interface: ^1.7.0
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/brand/escudo_uniguajira.png
+    - assets/brand/asistenciable_icono.png
+
+  # Figtree (SIL Open Font License 1.1, ver assets/fonts/OFL.txt).
+  fonts:
+    - family: Figtree
+      fonts:
+        - asset: assets/fonts/Figtree-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Figtree-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Figtree-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Figtree-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Figtree-ExtraBold.ttf
+          weight: 800

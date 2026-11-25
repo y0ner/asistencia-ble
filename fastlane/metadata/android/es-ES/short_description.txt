@@ -1,0 +1,1 @@
+Asistencia sin servidor y sin internet para universidades por Bluetooth LE.

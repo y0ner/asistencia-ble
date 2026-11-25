@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="640" font-family="Figtree, sans-serif" role="img" aria-label="Un estudiante cambia su celular anterior por uno nuevo">
+  <rect width="320" height="220" fill="#E3F1F3"/>
+  <rect x="44" y="40" width="84" height="140" rx="18" fill="none" stroke="#51666B" stroke-width="3" stroke-dasharray="7 7"></rect>
+  <circle cx="86" cy="98" r="16" fill="none" stroke="#D46454" stroke-width="3"></circle>
+  <path d="M75 109 l22 -22" stroke="#D46454" stroke-width="3" stroke-linecap="round" fill="none"></path>
+  <rect x="64" y="134" width="44" height="7" rx="3.500" fill="#51666B" opacity="0.6"></rect>
+  <path d="M142 110 h34 M164 97 l13 13 l-13 13" stroke="#E8A44C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  <rect x="192" y="40" width="84" height="140" rx="18" fill="#FFFFFF" stroke="#10262B" stroke-width="3"></rect>
+  <circle cx="234" cy="98" r="18" fill="#1F7A87"></circle>
+  <path d="M226 98 l6 6 l11 -12" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  <rect x="210" y="132" width="48" height="8" rx="4" fill="#10262B"></rect>
+  <rect x="218" y="148" width="32" height="7" rx="3.500" fill="#51666B" opacity="0.6"></rect>
+</svg>

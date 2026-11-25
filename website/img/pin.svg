@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="640" font-family="Figtree, sans-serif" role="img" aria-label="El celular del profesor muestra un PIN de dos números y el profesor lo dice en voz alta">
+  <rect width="320" height="220" fill="#E3F1F3"/>
+  <rect x="48" y="24" width="112" height="172" rx="20" fill="#1F7A87"></rect>
+  <rect x="80" y="48" width="48" height="8" rx="4" fill="#FFFFFF" opacity="0.55"></rect>
+  <rect x="64" y="72" width="36" height="52" rx="10" fill="#FFFFFF"></rect>
+  <rect x="108" y="72" width="36" height="52" rx="10" fill="#FFFFFF"></rect>
+  <text x="82" y="109" text-anchor="middle" font-size="32" font-weight="800" fill="#10262B">4</text>
+  <text x="126" y="109" text-anchor="middle" font-size="32" font-weight="800" fill="#10262B">7</text>
+  <rect x="72" y="146" width="64" height="8" rx="4" fill="#FFFFFF" opacity="0.3"></rect>
+  <rect x="84" y="162" width="40" height="8" rx="4" fill="#FFFFFF" opacity="0.3"></rect>
+  <path d="M192 62 h72 a16 16 0 0 1 16 16 v36 a16 16 0 0 1 -16 16 h-44 l-18 16 v-16 h-10 a16 16 0 0 1 -16 -16 v-36 a16 16 0 0 1 16 -16 z" fill="#FFFFFF" stroke="#10262B" stroke-width="3" stroke-linejoin="round"></path>
+  <text x="228" y="108" text-anchor="middle" font-size="30" font-weight="800" fill="#10262B">4 7</text>
+  <path d="M176 160 q8 8 0 16 M188 152 q16 16 0 32" stroke="#E8A44C" stroke-width="3.5" stroke-linecap="round" fill="none"></path>
+</svg>

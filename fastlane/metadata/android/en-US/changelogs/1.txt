@@ -1,0 +1,10 @@
+Initial release of AsistenciaBLE (v1.0.0):
+• Serverless offline attendance via Bluetooth Low Energy
+• Rotating HMAC-SHA256 tokens and 64-position bitmap echo
+• Course roster import (.xlsx, .csv, clipboard)
+• One-tap inverted exception list for students without phones
+• QR enrollment with X25519 key exchange
+• 4-sheet Excel (.xlsx) export and signed session minutes
+• Optional Google Sheets/Drive backup
+• Animated walkthrough and help center
+• Two flavors: Teacher and Student

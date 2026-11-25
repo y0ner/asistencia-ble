@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:asistencia_uniguajira/core/config/institution_config.dart';
 import 'package:asistencia_uniguajira/core/constants/app_constants.dart';
 import 'package:asistencia_uniguajira/core/crypto/ble_packet_codec.dart';
 import 'package:asistencia_uniguajira/core/models/attendance_record_model.dart';
@@ -20,7 +21,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 const String _testCourseSecret =
     '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-const String _testTeacherEmail = 'docente@uniguajira.edu.co';
+const String _testTeacherEmail = 'docente@institucion.edu.co';
 
 class _FakeBleAttendanceService extends BleAttendanceService {
   @override
@@ -87,16 +88,17 @@ StudentModel _buildStudent({
   required int bitIndex,
   required String personalSecret,
   String? email,
+  String? enrolledAt,
 }) {
   return StudentModel(
     id: id,
     courseId: courseId,
     studentCode: studentCode,
     fullName: fullName,
-    email: email ?? '$studentCode@uniguajira.edu.co',
+    email: email ?? '$studentCode@institucion.edu.co',
     bitIndex: bitIndex,
     personalSecret: personalSecret,
-    enrolledAt: '2026-11-06T08:05:00.000Z',
+    enrolledAt: enrolledAt ?? '2026-11-01T06:00:00.000Z',
   );
 }
 
@@ -333,6 +335,9 @@ void main() {
           'TotalInasistencias',
           'PorcentajeAsistencia',
           'EstadoAlerta',
+          'Origen',
+          'Celular vinculado desde',
+          'Estado',
         ]);
 
         // Verificación de filas de estudiantes (4 estudiantes matriculados)
@@ -569,10 +574,10 @@ void main() {
             _extractCellString(r[0]): _extractCellString(r[1]),
         };
 
-        expect(metaMap['Institucion'], 'Universidad de La Guajira');
+        expect(metaMap['Institucion'], 'Institución de Educación Superior');
         expect(
           metaMap['Sistema'],
-          'Asistencia Multimodal Uniguajira (BLE + Mapa de Bits 8B)',
+          'AsistenciaBLE (BLE + Mapa de Bits 8B)',
         );
         expect(metaMap['CursoID'], course.id);
         expect(metaMap['CodigoCurso'], 'SIST-401');
@@ -786,8 +791,28 @@ void main() {
       },
     );
 
+    test('exportFileNameFor limpia caracteres no válidos en nombres de archivo', () {
+      final raro = CourseModel(
+        id: 'x',
+        code: 'SIST/401 ',
+        name: 'Curso',
+        groupCode: '  ',
+        semester: '2026-2',
+        courseSecret: 'secreto',
+        createdAt: '2026-11-10T00:00:00Z',
+      );
+      expect(
+        ExcelReportService.exportFileNameFor(raro),
+        'AsistenciaBLE_SIST_401_SIN_DATO_2026-2_x.xlsx',
+      );
+      expect(
+        ExcelReportService.exportFileNameFor(course),
+        'AsistenciaBLE_SIST-401_01_2026-2_course.xlsx',
+      );
+    });
+
     test('exportWorkbookToFile guarda archivo físico en disco y valida su estructura', () async {
-      final tempDir = Directory.systemTemp.createTempSync('uniguajira_excel_');
+      final tempDir = Directory.systemTemp.createTempSync('asistenciable_excel_');
       try {
         final filePath = await excelService.exportWorkbookToFile(
           courseId: course.id,
@@ -796,7 +821,7 @@ void main() {
 
         final file = File(filePath);
         expect(file.existsSync(), isTrue);
-        expect(file.path.endsWith('Asistencia_Uniguajira_SIST-401_01.xlsx'), isTrue);
+        expect(file.path.endsWith('AsistenciaBLE_SIST-401_01_2026-2_course.xlsx'), isTrue);
 
         final bytes = await file.readAsBytes();
         expect(bytes.length, greaterThan(0));
@@ -818,27 +843,37 @@ void main() {
     // VALIDACIONES Y SINCRONIZACIÓN INSTITUCIONAL (CloudSyncService)
     // =========================================================================
     group('CloudSyncService — Validación de cuentas institucionales', () {
+      late CloudSyncService uniguajiraSyncService;
+
+      setUp(() {
+        uniguajiraSyncService = CloudSyncService(
+          database: database,
+          excelReportService: excelService,
+          institution: InstitutionConfig.uniguajira,
+        );
+      });
+
       test(
         'Acepta cuentas válidas con el dominio institucional exacto @uniguajira.edu.co',
         () {
           expect(
-            cloudSyncService.isValidInstitutionalEmail('docente@uniguajira.edu.co'),
+            uniguajiraSyncService.isValidInstitutionalEmail('docente@uniguajira.edu.co'),
             isTrue,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail(
+            uniguajiraSyncService.isValidInstitutionalEmail(
               'profesor.guajira@uniguajira.edu.co',
             ),
             isTrue,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail(
+            uniguajiraSyncService.isValidInstitutionalEmail(
               'DOCENTE.INVESTIGADOR@UNIGUAJIRA.EDU.CO',
             ),
             isTrue,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail(
+            uniguajiraSyncService.isValidInstitutionalEmail(
               'alvaro_garrido.123+prueba@uniguajira.edu.co',
             ),
             isTrue,
@@ -851,67 +886,67 @@ void main() {
         () {
           // Correos comerciales y dominios no institucionales
           expect(
-            cloudSyncService.isValidInstitutionalEmail('usuario@gmail.com'),
+            uniguajiraSyncService.isValidInstitutionalEmail('usuario@gmail.com'),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail('docente@uniguajira.com'),
+            uniguajiraSyncService.isValidInstitutionalEmail('docente@uniguajira.com'),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail('docente@hotmail.com'),
+            uniguajiraSyncService.isValidInstitutionalEmail('docente@hotmail.com'),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail('docente@uniguajira.edu'),
+            uniguajiraSyncService.isValidInstitutionalEmail('docente@uniguajira.edu'),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail('docente@uniguajira.org'),
+            uniguajiraSyncService.isValidInstitutionalEmail('docente@uniguajira.org'),
             isFalse,
           );
 
           // Cadenas vacías o mal formateadas
-          expect(cloudSyncService.isValidInstitutionalEmail(''), isFalse);
-          expect(cloudSyncService.isValidInstitutionalEmail('   '), isFalse);
+          expect(uniguajiraSyncService.isValidInstitutionalEmail(''), isFalse);
+          expect(uniguajiraSyncService.isValidInstitutionalEmail('   '), isFalse);
           expect(
-            cloudSyncService.isValidInstitutionalEmail('docente'),
+            uniguajiraSyncService.isValidInstitutionalEmail('docente'),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail('@uniguajira.edu.co'),
+            uniguajiraSyncService.isValidInstitutionalEmail('@uniguajira.edu.co'),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail('docente@'),
+            uniguajiraSyncService.isValidInstitutionalEmail('docente@'),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail(
+            uniguajiraSyncService.isValidInstitutionalEmail(
               'docente@uniguajira@uniguajira.edu.co',
             ),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail(
+            uniguajiraSyncService.isValidInstitutionalEmail(
               '.docente@uniguajira.edu.co',
             ),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail(
+            uniguajiraSyncService.isValidInstitutionalEmail(
               'docente.@uniguajira.edu.co',
             ),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail(
+            uniguajiraSyncService.isValidInstitutionalEmail(
               'doc..ente@uniguajira.edu.co',
             ),
             isFalse,
           );
           expect(
-            cloudSyncService.isValidInstitutionalEmail(
+            uniguajiraSyncService.isValidInstitutionalEmail(
               'docente esp@uniguajira.edu.co',
             ),
             isFalse,
@@ -969,10 +1004,16 @@ void main() {
       );
 
       test(
-        'syncCourseToInstitutionalCloud rechaza correos no institucionales con ArgumentError',
+        'syncCourseToInstitutionalCloud rechaza correos no institucionales con ArgumentError (perfil piloto)',
         () async {
+          final uniguajiraSyncService = CloudSyncService(
+            database: database,
+            excelReportService: excelService,
+            institution: InstitutionConfig.uniguajira,
+          );
+
           await expectLater(
-            cloudSyncService.syncCourseToInstitutionalCloud(
+            uniguajiraSyncService.syncCourseToInstitutionalCloud(
               courseId: course.id,
               institutionalEmail: 'docente@gmail.com',
             ),
@@ -980,9 +1021,36 @@ void main() {
           );
 
           await expectLater(
-            cloudSyncService.syncCourseToInstitutionalCloud(
+            uniguajiraSyncService.syncCourseToInstitutionalCloud(
               courseId: course.id,
               institutionalEmail: 'invalido@uniguajira.com',
+            ),
+            throwsArgumentError,
+          );
+        },
+      );
+
+      test(
+        'syncCourseToInstitutionalCloud rechaza correos mal formados con ArgumentError (perfil general)',
+        () async {
+          final generalSyncService = CloudSyncService(
+            database: database,
+            excelReportService: excelService,
+            institution: InstitutionConfig.general,
+          );
+
+          await expectLater(
+            generalSyncService.syncCourseToInstitutionalCloud(
+              courseId: course.id,
+              institutionalEmail: 'docente.sin.arroba',
+            ),
+            throwsArgumentError,
+          );
+
+          await expectLater(
+            generalSyncService.syncCourseToInstitutionalCloud(
+              courseId: course.id,
+              institutionalEmail: 'docente@sinpunto',
             ),
             throwsArgumentError,
           );
@@ -995,7 +1063,7 @@ void main() {
           final CloudSyncResult result =
               await cloudSyncService.syncCourseToInstitutionalCloud(
                 courseId: course.id,
-                institutionalEmail: 'docente.sistemas@uniguajira.edu.co',
+                institutionalEmail: 'docente.sistemas@institucion.edu.co',
               );
 
           expect(result.status, CloudSyncStatus.offlineReady);
@@ -1008,7 +1076,7 @@ void main() {
           expect(result.errorMessage, isNull);
           expect(
             result.institutionalEmail,
-            'docente.sistemas@uniguajira.edu.co',
+            'docente.sistemas@institucion.edu.co',
           );
           expect(result.reportSignatureHmac, hasLength(64));
           expect(result.xlsxBytes.length, greaterThan(0));
@@ -1019,7 +1087,7 @@ void main() {
           // Serialización de CloudSyncResult a JSON
           final json = result.toJson();
           expect(json['status'], CloudSyncStatus.offlineReady);
-          expect(json['institutionalEmail'], 'docente.sistemas@uniguajira.edu.co');
+          expect(json['institutionalEmail'], 'docente.sistemas@institucion.edu.co');
           expect(json['xlsxBase64'], isNotEmpty);
         },
       );
@@ -1031,7 +1099,7 @@ void main() {
           final CloudSyncResult result =
               await cloudSyncService.syncCourseToInstitutionalCloud(
                 courseId: course.id,
-                institutionalEmail: 'docente.investigador@uniguajira.edu.co',
+                institutionalEmail: 'docente.investigador@institucion.edu.co',
                 transportOverride: (CloudSyncPayload payload) async {
                   capturedPayload = payload;
                   return true;
@@ -1058,7 +1126,7 @@ void main() {
           final CloudSyncResult result =
               await cloudSyncService.syncCourseToInstitutionalCloud(
                 courseId: course.id,
-                institutionalEmail: 'docente.titular@uniguajira.edu.co',
+                institutionalEmail: 'docente.titular@institucion.edu.co',
                 transportOverride: (CloudSyncPayload payload) async {
                   return false;
                 },
@@ -1083,7 +1151,7 @@ void main() {
           final CloudSyncResult result =
               await cloudSyncService.syncCourseToInstitutionalCloud(
                 courseId: course.id,
-                institutionalEmail: 'docente.catedra@uniguajira.edu.co',
+                institutionalEmail: 'docente.catedra@institucion.edu.co',
                 transportOverride: (CloudSyncPayload payload) async {
                   throw const SocketException('Error de conexión con Google Sheets');
                 },

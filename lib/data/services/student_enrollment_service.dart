@@ -12,12 +12,12 @@ class StudentEnrollmentService {
 
   /// Valida y guarda la credencial recibida en el QR de enrolamiento.
   ///
-  /// Lanza [FormatException] cuando el texto no es un QR de Asistencia
-  /// Uniguajira, está corrupto o incumple el rango del Bitmap.
+  /// Lanza [FormatException] cuando el texto no es un QR de AsistenciaBLE,
+  /// está corrupto o incumple el rango del Bitmap.
   Future<StudentEnrollmentModel> enrollFromQrPayload(String rawQrJson) async {
     final payload = rawQrJson.trim();
     if (payload.isEmpty) {
-      throw const FormatException('El QR de Asistencia Uniguajira está vacío.');
+      throw const FormatException('El QR de AsistenciaBLE está vacío.');
     }
 
     final StudentEnrollmentModel enrollment;
@@ -25,7 +25,7 @@ class StudentEnrollmentService {
       enrollment = StudentEnrollmentModel.fromQrPayloadJson(payload);
     } on FormatException catch (error) {
       throw FormatException(
-        'El QR no pertenece a Asistencia Uniguajira o está corrupto: '
+        'El QR no pertenece a AsistenciaBLE o está corrupto: '
         '${error.message}',
         payload,
       );

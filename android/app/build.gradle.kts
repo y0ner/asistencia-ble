@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -28,10 +31,54 @@ android {
         versionName = flutter.versionName
     }
 
+    buildFeatures {
+        // Necesario en AGP 8+ para usar resValue("string", "app_name", …) en los flavors.
+        resValues = true
+    }
+
+    flavorDimensions += "rol"
+    productFlavors {
+        create("docente") {
+            dimension = "rol"
+            applicationIdSuffix = ".docente"
+            resValue("string", "app_name", "AsistenciaBLE Docente")
+        }
+        create("estudiante") {
+            dimension = "rol"
+            applicationIdSuffix = ".estudiante"
+            resValue("string", "app_name", "AsistenciaBLE Estudiante")
+        }
+    }
+
+    // Firma de release: android/key.properties (fuera de git) apunta al keystore.
+    // Sin él, el release se firma con la clave debug y se avisa: ese APK no
+    // podrá actualizar a uno firmado con la clave real sin desinstalar.
+    val keystoreProperties = Properties()
+    val keystorePropertiesFile = rootProject.file("key.properties")
+    val hasReleaseKey = keystorePropertiesFile.exists()
+    if (hasReleaseKey) {
+        FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
+    }
+
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn("AVISO: falta android/key.properties; el release se firma con la clave debug.")
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
