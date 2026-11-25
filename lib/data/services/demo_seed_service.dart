@@ -38,7 +38,7 @@ class DemoSeedResult {
   /// Cantidad de actas criptográficas con firma HMAC-SHA256 (esperado: 4).
   final int signedActasCount;
 
-  /// Código del estudiante enrolado en la billetera local (esperado: '2026010001').
+  /// Código del estudiante enrolado en la billetera local (esperado: '0126000001').
   final String enrolledStudentCode;
 
   /// Posición en el Bitmap del estudiante enrolado (esperado: 0).
@@ -111,10 +111,10 @@ class DemoSeedService {
   static const String demoTeacherEmail = 'docente.demo@institucion.edu.co';
 
   /// Código del estudiante expositor principal (Bit 00).
-  static const String primaryStudentCode = '2026010001';
+  static const String primaryStudentCode = '0126000001';
 
   /// Código del estudiante expositor secundario (Bit 01).
-  static const String secondaryStudentCode = '2026010002';
+  static const String secondaryStudentCode = '0126000002';
 
   /// Secreto criptográfico de 32 bytes (64 caracteres hexadecimales) para el curso demo.
   static const String demoCourseSecret =
@@ -126,62 +126,62 @@ class DemoSeedService {
 
   static const List<Map<String, String>> officialRoster = <Map<String, String>>[
     <String, String>{
-      'code': '2026010001',
+      'code': '0126000001',
       'name': 'HERRERA CASTILLO MATEO',
       'email': 'mherrera@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010002',
+      'code': '0126000002',
       'name': 'RODRIGUEZ LOPEZ SOFIA',
       'email': 'srodriguez@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010003',
+      'code': '0126000003',
       'name': 'MARTINEZ SUAREZ SANTIAGO',
       'email': 'smartinez@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010004',
+      'code': '0126000004',
       'name': 'GARCIA MENDOZA ISABELLA',
       'email': 'igarcia@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010005',
+      'code': '0126000005',
       'name': 'LOPEZ DUARTE VALENTINA',
       'email': 'vlopez@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010006',
+      'code': '0126000006',
       'name': 'MORALES CHAVEZ JUAN ESTEBAN',
       'email': 'jmorales@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010007',
+      'code': '0126000007',
       'name': 'CASTRO ORTIZ CAMILA',
       'email': 'ccastro@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010008',
+      'code': '0126000008',
       'name': 'RAMIREZ NAVARRO SAMUEL',
       'email': 'sramirez@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010009',
+      'code': '0126000009',
       'name': 'VARGAS OSORIO MARIANA',
       'email': 'mvargas@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010010',
+      'code': '0126000010',
       'name': 'JIMENEZ QUINTERO GABRIEL',
       'email': 'gjimenez@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010011',
+      'code': '0126000011',
       'name': 'TORRES AGUILAR LUCIA',
       'email': 'ltorres@institucion.edu.co',
     },
     <String, String>{
-      'code': '2026010012',
+      'code': '0126000012',
       'name': 'SILVA BENITEZ DANIEL',
       'email': 'dsilva@institucion.edu.co',
     },
@@ -195,7 +195,7 @@ class DemoSeedService {
   ///
   /// Si [resetExisting] es `false` y el curso ya existe, retorna inmediatamente
   /// el estado actual sin duplicar registros y asegurando que la credencial del
-  /// estudiante '2026010001' esté registrada en la billetera.
+  /// estudiante '0126000001' esté registrada en la billetera.
   /// Si [resetExisting] es `true`, elimina el curso existente (con borrado en cascada
   /// de estudiantes, sesiones, registros y actas) y limpia la credencial de enrolamiento
   /// antes de reconstruir el escenario desde cero.

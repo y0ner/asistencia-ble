@@ -1004,10 +1004,16 @@ void main() {
       );
 
       test(
-        'syncCourseToInstitutionalCloud rechaza correos no institucionales con ArgumentError',
+        'syncCourseToInstitutionalCloud rechaza correos no institucionales con ArgumentError (perfil piloto)',
         () async {
+          final uniguajiraSyncService = CloudSyncService(
+            database: database,
+            excelReportService: excelService,
+            institution: InstitutionConfig.uniguajira,
+          );
+
           await expectLater(
-            cloudSyncService.syncCourseToInstitutionalCloud(
+            uniguajiraSyncService.syncCourseToInstitutionalCloud(
               courseId: course.id,
               institutionalEmail: 'docente@gmail.com',
             ),
@@ -1015,9 +1021,36 @@ void main() {
           );
 
           await expectLater(
-            cloudSyncService.syncCourseToInstitutionalCloud(
+            uniguajiraSyncService.syncCourseToInstitutionalCloud(
               courseId: course.id,
               institutionalEmail: 'invalido@uniguajira.com',
+            ),
+            throwsArgumentError,
+          );
+        },
+      );
+
+      test(
+        'syncCourseToInstitutionalCloud rechaza correos mal formados con ArgumentError (perfil general)',
+        () async {
+          final generalSyncService = CloudSyncService(
+            database: database,
+            excelReportService: excelService,
+            institution: InstitutionConfig.general,
+          );
+
+          await expectLater(
+            generalSyncService.syncCourseToInstitutionalCloud(
+              courseId: course.id,
+              institutionalEmail: 'docente.sin.arroba',
+            ),
+            throwsArgumentError,
+          );
+
+          await expectLater(
+            generalSyncService.syncCourseToInstitutionalCloud(
+              courseId: course.id,
+              institutionalEmail: 'docente@sinpunto',
             ),
             throwsArgumentError,
           );

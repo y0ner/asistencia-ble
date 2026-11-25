@@ -33,6 +33,9 @@ DART_DEFINES=()
 if [ -n "${INSTITUCION:-}" ]; then
   DART_DEFINES+=("--dart-define=INSTITUCION=$INSTITUCION")
 fi
+if [ -n "${DEMO_SEED:-}" ]; then
+  DART_DEFINES+=("--dart-define=DEMO_SEED=$DEMO_SEED")
+fi
 
 # 1. Opciones para compilar APKs por flavor
 if [ "$ACTION" = "apk-docente" ]; then
@@ -137,4 +140,5 @@ echo "  ./run.sh analyze                   Ejecuta análisis estático con linte
 echo ""
 echo "Perfiles institucionales:"
 echo "  INSTITUCION=uniguajira ./run.sh apk   # perfil piloto con escudo y dominio"
+echo "  DEMO_SEED=true ./run.sh apk            # carga una clase de demostración (capturas)"
 exit 0

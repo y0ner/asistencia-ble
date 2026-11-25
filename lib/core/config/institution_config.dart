@@ -8,6 +8,7 @@ class InstitutionProfile {
     required this.id,
     required this.appName,
     required this.headerSubtitle,
+    required this.institutionName,
     required this.emailDomain,
     required this.emblemAsset,
     required this.emblemSemanticLabel,
@@ -22,6 +23,9 @@ class InstitutionProfile {
   /// Texto bajo el nombre en el encabezado institucional.
   final String headerSubtitle;
 
+  /// Nombre de la institución en los reportes oficiales (hoja Metadatos).
+  final String institutionName;
+
   /// Dominio de correo institucional requerido o `null` si admite cualquier correo válido.
   final String? emailDomain;
 
@@ -30,10 +34,6 @@ class InstitutionProfile {
 
   /// Etiqueta semántica de accesibilidad del emblema.
   final String emblemSemanticLabel;
-
-  /// Nombre institucional o descripción para reportes oficiales.
-  String get institutionName =>
-      id == 'uniguajira' ? headerSubtitle : 'Institución de Educación Superior';
 }
 
 /// Proveedor de configuración institucional de AsistenciaBLE.
@@ -43,6 +43,7 @@ abstract final class InstitutionConfig {
     id: 'general',
     appName: 'AsistenciaBLE',
     headerSubtitle: 'Asistencia por proximidad',
+    institutionName: 'Institución de Educación Superior',
     emailDomain: null,
     emblemAsset: 'assets/brand/asistenciable_icono.png',
     emblemSemanticLabel: 'Ícono de AsistenciaBLE',
@@ -53,6 +54,7 @@ abstract final class InstitutionConfig {
     id: 'uniguajira',
     appName: 'AsistenciaBLE',
     headerSubtitle: 'Universidad de La Guajira',
+    institutionName: 'Universidad de La Guajira',
     emailDomain: '@uniguajira.edu.co',
     emblemAsset: 'assets/brand/escudo_uniguajira.png',
     emblemSemanticLabel: 'Escudo de la Universidad de La Guajira',

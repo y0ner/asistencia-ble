@@ -109,7 +109,7 @@ void main() {
       expect(result.closedSessionsSeeded, 4);
       expect(result.signedActasCount, 4);
       expect(result.enrolledStudentCode, DemoSeedService.primaryStudentCode);
-      expect(result.enrolledStudentCode, '0182120016');
+      expect(result.enrolledStudentCode, '0126000001');
       expect(result.enrolledBitIndex, 0);
 
       final dbCourse = await database.getCourseById(result.course.id);
@@ -144,26 +144,26 @@ void main() {
     // -------------------------------------------------------------------------
     // Escenario 2: Preservación de ceros a la izquierda y asignación de bits
     // -------------------------------------------------------------------------
-    test('2. Preservación de ceros a la izquierda y asignación de bits de los autores: comprueba que el Bit 00 tiene studentCode == "${DemoSeedService.primaryStudentCode}" y el Bit 01 tiene studentCode == "${DemoSeedService.secondaryStudentCode}"', () async {
+    test('2. Preservación de ceros a la izquierda y asignación de bits de los autores: comprueba que el Bit 00 tiene studentCode == "0126000001" y el Bit 01 tiene studentCode == "0126000002"', () async {
       final students = await database.getStudentsByCourse(course.id);
       expect(students.length, 12);
 
-      // Bit 00: Autor Principal Mateo Herrera
+      // Bit 00: estudiante ficticio Mateo Herrera
       final author0 = students.firstWhere((StudentModel s) => s.bitIndex == 0);
-      expect(author0.studentCode, DemoSeedService.primaryStudentCode);
-      expect(author0.studentCode.startsWith('2026'), isTrue);
+      expect(author0.studentCode, '0126000001');
+      expect(author0.studentCode.startsWith('0'), isTrue);
       expect(author0.studentCode.length, 10);
-      expect(author0.fullName, DemoSeedService.officialRoster[0]['name']);
-      expect(author0.email, DemoSeedService.officialRoster[0]['email']);
+      expect(author0.fullName, 'HERRERA CASTILLO MATEO');
+      expect(author0.email, 'mherrera@institucion.edu.co');
       expect(author0.personalSecret, hasLength(64));
 
-      // Bit 01: Coautor Sofía Rodríguez
+      // Bit 01: estudiante ficticia Sofía Rodríguez
       final author1 = students.firstWhere((StudentModel s) => s.bitIndex == 1);
-      expect(author1.studentCode, DemoSeedService.secondaryStudentCode);
-      expect(author1.studentCode.startsWith('2026'), isTrue);
+      expect(author1.studentCode, '0126000002');
+      expect(author1.studentCode.startsWith('0'), isTrue);
       expect(author1.studentCode.length, 10);
-      expect(author1.fullName, DemoSeedService.officialRoster[1]['name']);
-      expect(author1.email, DemoSeedService.officialRoster[1]['email']);
+      expect(author1.fullName, 'RODRIGUEZ LOPEZ SOFIA');
+      expect(author1.email, 'srodriguez@institucion.edu.co');
       expect(author1.personalSecret, hasLength(64));
 
       // Verificación de unicidad e integridad para toda la nómina de 12
@@ -190,15 +190,15 @@ void main() {
     // -------------------------------------------------------------------------
     // Escenario 3: Auto-enrolamiento del expositor y verificación BLE
     // -------------------------------------------------------------------------
-    test('3. Auto-enrolamiento del estudiante Bit 00 y verificación criptográfica BLE: comprueba que student_enrollments contiene la credencial de "0182120016" y que el paquete BLE de 16 bytes generado con sus semillas es validado exitosamente por BlePacketCodec.verifyStudentPacket', () async {
+    test('3. Auto-enrolamiento del estudiante Bit 00 y verificación criptográfica BLE: comprueba que student_enrollments contiene la credencial de "0126000001" y que el paquete BLE de 16 bytes generado con sus semillas es validado exitosamente por BlePacketCodec.verifyStudentPacket', () async {
       final enrollments = await database.getStudentEnrollments();
       expect(enrollments, isNotEmpty);
 
       final enrollment = await database.getStudentEnrollmentByCourse(course.id);
       expect(enrollment, isNotNull);
-      expect(enrollment!.studentCode, '0182120016');
+      expect(enrollment!.studentCode, '0126000001');
       expect(enrollment.studentCode, DemoSeedService.primaryStudentCode);
-      expect(enrollment.fullName, 'ISAZA VIDES YONER DE JESUS');
+      expect(enrollment.fullName, 'HERRERA CASTILLO MATEO');
       expect(enrollment.bitIndex, 0);
       expect(enrollment.courseId, course.id);
       expect(enrollment.courseCode, 'ING-SIS-1002');
@@ -208,7 +208,7 @@ void main() {
 
       final student0 = await database.getStudentByCode(
         courseId: course.id,
-        studentCode: '0182120016',
+        studentCode: '0126000001',
       );
       expect(student0, isNotNull);
       expect(enrollment.deviceSecret, student0!.personalSecret);
@@ -457,7 +457,7 @@ void main() {
 
       // Comprobación individual de los autores de la tesis
       final yonerMetric = summary.students.firstWhere(
-        (s) => s.studentCode == '0182120016',
+        (s) => s.studentCode == '0126000001',
       );
       expect(yonerMetric.alertStatus, AttendanceAlertStatus.normal);
       expect(yonerMetric.bleAttendances, 4);
@@ -465,7 +465,7 @@ void main() {
       expect(yonerMetric.totalAttendances, 4);
 
       final alvaroMetric = summary.students.firstWhere(
-        (s) => s.studentCode == '0182110072',
+        (s) => s.studentCode == '0126000002',
       );
       expect(alvaroMetric.alertStatus, AttendanceAlertStatus.normal);
       expect(alvaroMetric.bleAttendances, 2);
@@ -476,7 +476,7 @@ void main() {
     // -------------------------------------------------------------------------
     // Escenario 6: Generación y decodificación binaria del Excel oficial
     // -------------------------------------------------------------------------
-    test('6. Generación y decodificación binaria del Excel oficial (.xlsx de 4 hojas) sobre el curso sembrado: verifica las hojas Resumen, Detalle, Sesiones y Metadatos, la preservación como texto de "0182120016" y "0182110072", y la huella HMAC-SHA256 en Metadatos', () async {
+    test('6. Generación y decodificación binaria del Excel oficial (.xlsx de 4 hojas) sobre el curso sembrado: verifica las hojas Resumen, Detalle, Sesiones y Metadatos, la preservación como texto de "0126000001" y "0126000002", y la huella HMAC-SHA256 en Metadatos', () async {
       final excelService = ExcelReportService(
         database: database,
         teacherEmail: DemoSeedService.demoTeacherEmail,
@@ -524,35 +524,35 @@ void main() {
         'Estado',
       ]);
 
-      // Verificación de celda de texto para Yoner
-      final rowYoner = summarySheet.rows.firstWhere(
-        (r) => _extractCellString(r[1]) == '0182120016',
+      // Verificación de celda de texto para el Bit 00
+      final rowBit00 = summarySheet.rows.firstWhere(
+        (r) => _extractCellString(r[1]) == '0126000001',
       );
-      expect(rowYoner[1]?.value, isA<TextCellValue>());
-      expect(_extractCellString(rowYoner[1]), '0182120016');
-      expect(_extractCellString(rowYoner[2]), 'ISAZA VIDES YONER DE JESUS');
-      expect(_extractCellString(rowYoner[4]), '4');
-      expect(_extractCellString(rowYoner[5]), '4'); // 4 BLE
-      expect(_extractCellString(rowYoner[6]), '0'); // 0 Manual
-      expect(_extractCellString(rowYoner[7]), '4');
-      expect(_extractCellString(rowYoner[8]), '0');
-      expect(double.tryParse(_extractCellString(rowYoner[9])), 100.0);
-      expect(_extractCellString(rowYoner[10]), 'NORMAL');
+      expect(rowBit00[1]?.value, isA<TextCellValue>());
+      expect(_extractCellString(rowBit00[1]), '0126000001');
+      expect(_extractCellString(rowBit00[2]), 'HERRERA CASTILLO MATEO');
+      expect(_extractCellString(rowBit00[4]), '4');
+      expect(_extractCellString(rowBit00[5]), '4'); // 4 BLE
+      expect(_extractCellString(rowBit00[6]), '0'); // 0 Manual
+      expect(_extractCellString(rowBit00[7]), '4');
+      expect(_extractCellString(rowBit00[8]), '0');
+      expect(double.tryParse(_extractCellString(rowBit00[9])), 100.0);
+      expect(_extractCellString(rowBit00[10]), 'NORMAL');
 
-      // Verificación de celda de texto para Álvaro
-      final rowAlvaro = summarySheet.rows.firstWhere(
-        (r) => _extractCellString(r[1]) == '0182110072',
+      // Verificación de celda de texto para el Bit 01
+      final rowBit01 = summarySheet.rows.firstWhere(
+        (r) => _extractCellString(r[1]) == '0126000002',
       );
-      expect(rowAlvaro[1]?.value, isA<TextCellValue>());
-      expect(_extractCellString(rowAlvaro[1]), '0182110072');
-      expect(_extractCellString(rowAlvaro[2]), 'GARRIDO MEDINA ALVARO LUIS');
-      expect(_extractCellString(rowAlvaro[4]), '4');
-      expect(_extractCellString(rowAlvaro[5]), '2'); // 2 BLE
-      expect(_extractCellString(rowAlvaro[6]), '2'); // 2 Manual
-      expect(_extractCellString(rowAlvaro[7]), '4');
-      expect(_extractCellString(rowAlvaro[8]), '0');
-      expect(double.tryParse(_extractCellString(rowAlvaro[9])), 100.0);
-      expect(_extractCellString(rowAlvaro[10]), 'NORMAL');
+      expect(rowBit01[1]?.value, isA<TextCellValue>());
+      expect(_extractCellString(rowBit01[1]), '0126000002');
+      expect(_extractCellString(rowBit01[2]), 'RODRIGUEZ LOPEZ SOFIA');
+      expect(_extractCellString(rowBit01[4]), '4');
+      expect(_extractCellString(rowBit01[5]), '2'); // 2 BLE
+      expect(_extractCellString(rowBit01[6]), '2'); // 2 Manual
+      expect(_extractCellString(rowBit01[7]), '4');
+      expect(_extractCellString(rowBit01[8]), '0');
+      expect(double.tryParse(_extractCellString(rowBit01[9])), 100.0);
+      expect(_extractCellString(rowBit01[10]), 'NORMAL');
 
       // ---------------------------------------------------------------------
       // Hoja 2: Detalle
@@ -579,12 +579,12 @@ void main() {
       );
 
       final yonerDetailRows = detailSheet.rows
-          .where((r) => _extractCellString(r[4]) == '0182120016')
+          .where((r) => _extractCellString(r[4]) == '0126000001')
           .toList(growable: false);
       expect(yonerDetailRows.length, 4);
       for (final row in yonerDetailRows) {
         expect(row[4]?.value, isA<TextCellValue>());
-        expect(_extractCellString(row[4]), '0182120016');
+        expect(_extractCellString(row[4]), '0126000001');
         expect(_extractCellString(row[6]), 'PRESENT');
         expect(
           _extractCellString(row[7]),
@@ -593,12 +593,12 @@ void main() {
       }
 
       final alvaroDetailRows = detailSheet.rows
-          .where((r) => _extractCellString(r[4]) == '0182110072')
+          .where((r) => _extractCellString(r[4]) == '0126000002')
           .toList(growable: false);
       expect(alvaroDetailRows.length, 4);
       for (final row in alvaroDetailRows) {
         expect(row[4]?.value, isA<TextCellValue>());
-        expect(_extractCellString(row[4]), '0182110072');
+        expect(_extractCellString(row[4]), '0126000002');
         expect(_extractCellString(row[6]), 'PRESENT');
       }
 
@@ -847,7 +847,7 @@ void main() {
     // -------------------------------------------------------------------------
     // Escenario 9: Simulación en vivo de la 5ta sesión de sustentación
     // -------------------------------------------------------------------------
-    test('9. Simulación en vivo de la 5ta sesión de sustentación: abre una 5ta sesión con AttendanceSessionController sobre el curso sembrado, inyecta el beacon BLE del Bit 00 ("0182120016"), marca por Lista Invertida al Bit 01 ("0182110072"), cierra y firma el acta, comprobando que el curso pasa a tener 5 sesiones cerradas y 5 actas firmadas', () async {
+    test('9. Simulación en vivo de la 5ta sesión de sustentación: abre una 5ta sesión con AttendanceSessionController sobre el curso sembrado, inyecta el beacon BLE del Bit 00 ("0126000001"), marca por Lista Invertida al Bit 01 ("0126000002"), cierra y firma el acta, comprobando que el curso pasa a tener 5 sesiones cerradas y 5 actas firmadas', () async {
       final bleService = _FakeBleAttendanceService();
       final controller = AttendanceSessionController(
         database: database,
@@ -870,7 +870,7 @@ void main() {
       expect(activeState.totalEnrolled, 12);
       expect(activeState.presentBitIndices, isEmpty);
 
-      // 2. Inyección de anuncio BLE para Bit 00 (Yoner Isaza - '0182120016')
+      // 2. Inyección de anuncio BLE para Bit 00 (Mateo Herrera - '0126000001')
       final student0 = await database.getStudentByCode(
         courseId: course.id,
         studentCode: DemoSeedService.primaryStudentCode,
@@ -895,14 +895,14 @@ void main() {
       );
       expect(outcome0.isAccepted, isTrue);
       expect(outcome0.bitIndex, 0);
-      expect(outcome0.student?.studentCode, '0182120016');
+      expect(outcome0.student?.studentCode, '0126000001');
       expect(outcome0.verifyCode, startsWith('UG-'));
       expect(
         BlePacketCodec.isStudentBitSet(controller.state!.bitmap8, 0),
         isTrue,
       );
 
-      // 3. Marcación por Lista Invertida para Bit 01 (Álvaro Garrido - '0182110072')
+      // 3. Marcación por Lista Invertida para Bit 01 (Sofía Rodríguez - '0126000002')
       final student1 = await database.getStudentByCode(
         courseId: course.id,
         studentCode: DemoSeedService.secondaryStudentCode,
