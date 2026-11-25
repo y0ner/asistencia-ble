@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../core/config/institution_config.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/models/course_model.dart';
 import '../../data/local/app_database.dart';
@@ -470,7 +471,9 @@ class _ApproveSheetState extends State<_ApproveSheet> {
           onSubmitted: (_) => _submit(),
           decoration: InputDecoration(
             labelText: 'Correo (opcional)',
-            hintText: 'nombre${AppConstants.institutionalDomain}',
+            hintText: InstitutionConfig.current.emailDomain != null
+                ? 'nombre${InstitutionConfig.current.emailDomain}'
+                : 'nombre@institucion.edu.co',
             errorText: _emailError,
           ),
         ),
