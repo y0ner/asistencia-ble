@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="640" font-family="Figtree, sans-serif" role="img" aria-label="El profesor ve una solicitud por aprobar y decide aceptarla o rechazarla">
+  <rect width="320" height="220" fill="#E3F1F3"/>
+  <rect x="38" y="24" width="104" height="172" rx="20" fill="#1F7A87"></rect>
+  <rect x="54" y="48" width="48" height="8" rx="4" fill="#FFFFFF" opacity="0.55"></rect>
+  <rect x="54" y="66" width="72" height="8" rx="4" fill="#FFFFFF" opacity="0.3"></rect>
+  <rect x="54" y="82" width="60" height="8" rx="4" fill="#FFFFFF" opacity="0.3"></rect>
+  <rect x="96" y="70" width="192" height="104" rx="18" fill="#FFFFFF" stroke="#DDE5E6" stroke-width="2"></rect>
+  <rect x="112" y="84" width="84" height="20" rx="10" fill="#E8A44C"></rect>
+  <text x="154" y="98.500" text-anchor="middle" font-size="11" font-weight="700" fill="#10262B">Por aprobar</text>
+  <circle cx="126" cy="130" r="13" fill="#E3F1F3" stroke="#1F7A87" stroke-width="2.5"></circle>
+  <path d="M126 125 v0.500 M126 130 v6" stroke="#1F7A87" stroke-width="3" stroke-linecap="round" fill="none"></path>
+  <rect x="148" y="120" width="72" height="8" rx="4" fill="#10262B"></rect>
+  <rect x="148" y="134" width="48" height="7" rx="3.5" fill="#51666B" opacity="0.6"></rect>
+  <circle cx="246" cy="130" r="15" fill="#1F7A87"></circle>
+  <path d="M239 130 l5 5 l9 -10" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  <circle cx="272" cy="96" r="11" fill="none" stroke="#D46454" stroke-width="2.5"></circle>
+  <path d="M268 92 l8 8 M276 92 l-8 8" stroke="#D46454" stroke-width="2.5" stroke-linecap="round" fill="none"></path>
+</svg>
