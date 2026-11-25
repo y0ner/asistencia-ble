@@ -19,8 +19,8 @@ void main() {
 
   group('Pruebas de AppFlavor y Puntos de Entrada', () {
     test('AppFlavor define títulos y pantallas correctas', () {
-      expect(AppFlavor.docente.title, 'Asistencia Docente');
-      expect(AppFlavor.estudiante.title, 'Asistencia Estudiante');
+      expect(AppFlavor.docente.title, 'AsistenciaBLE Docente');
+      expect(AppFlavor.estudiante.title, 'AsistenciaBLE Estudiante');
 
       expect(AppFlavor.docente.homeScreen, isA<CoursesDashboardScreen>());
       expect(AppFlavor.estudiante.homeScreen, isA<StudentCoursesScreen>());

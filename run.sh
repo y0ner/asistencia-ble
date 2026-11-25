@@ -39,7 +39,7 @@ fi
 
 # 1. Opciones para compilar APKs por flavor
 if [ "$ACTION" = "apk-docente" ]; then
-  echo "▶ Compilando APK Release de Asistencia Docente..."
+  echo "▶ Compilando APK Release de AsistenciaBLE Docente..."
   flutter build apk --release --flavor docente -t lib/main_docente.dart --android-skip-build-dependency-validation "${DART_DEFINES[@]}" "${@:2}"
   echo "✔ APK Docente generado con éxito en: build/app/outputs/flutter-apk/app-docente-release.apk"
   ls -lh build/app/outputs/flutter-apk/app-docente-release.apk 2>/dev/null || true
@@ -47,7 +47,7 @@ if [ "$ACTION" = "apk-docente" ]; then
 fi
 
 if [ "$ACTION" = "apk-estudiante" ]; then
-  echo "▶ Compilando APK Release de Asistencia Estudiante..."
+  echo "▶ Compilando APK Release de AsistenciaBLE Estudiante..."
   flutter build apk --release --flavor estudiante -t lib/main_estudiante.dart --android-skip-build-dependency-validation "${DART_DEFINES[@]}" "${@:2}"
   echo "✔ APK Estudiante generado con éxito en: build/app/outputs/flutter-apk/app-estudiante-release.apk"
   ls -lh build/app/outputs/flutter-apk/app-estudiante-release.apk 2>/dev/null || true

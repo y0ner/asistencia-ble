@@ -241,7 +241,7 @@ class _EnrollmentHostScreenState extends State<EnrollmentHostScreen> {
                 Text('Código de la clase', style: UiText.title.copyWith(color: c.ink)),
                 const SizedBox(height: UiSpace.xs),
                 Text(
-                  'Muéstralo o proyéctalo. Cada estudiante abre Asistencia Estudiante, toca «Unirme a una clase», lo escanea y escribe su código.',
+                  'Muéstralo o proyéctalo. Cada estudiante abre AsistenciaBLE Estudiante, toca «Unirme a una clase», lo escanea y escribe su código.',
                   textAlign: TextAlign.center,
                   style: UiText.label.copyWith(color: c.muted),
                 ),
