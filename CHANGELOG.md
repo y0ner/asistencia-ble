@@ -30,3 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project rebranded to **AsistenciaBLE** to serve higher education institutions generally.
 - Institutional identity (University of La Guajira shield and `@uniguajira.edu.co` domain restriction) moved to dedicated pilot build profile (`INSTITUCION=uniguajira`).
 - Licensed under the Apache License 2.0 (`LICENSE`).
+
+### Fixed
+- The "Signed session" sheet showed the closing time in UTC and could show the next day's date (a class at 10:42 p.m. on Friday appeared as "Saturday 5:42 a.m."); it now shows the session start in local time, matching "Recent sessions".
+- Remaining old app names ("Asistencia Estudiante/Docente") in the enrollment QR instructions, the help walkthrough and the app titles.
+- Demo data now uses fictitious names, emails and student codes instead of real people's data.

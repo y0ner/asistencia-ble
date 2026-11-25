@@ -63,13 +63,13 @@ Versión actual: **1.0.0** — [notas de lanzamiento](CHANGELOG.md)
   <img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="Gráfico destacado de AsistenciaBLE" width="800" />
 </p>
 
-| 1. Inicio del docente | 2. Sesión en vivo del docente | 3. Estudiante marcando | 4. Confirmación ¡Presente! |
+| 1. Inicio del docente | 2. Sesión en vivo del docente | 3. Estudiante: acerca el celular | 4. Inicio del estudiante |
 | :---: | :---: | :---: | :---: |
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Inicio del docente" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Sesión en vivo del docente" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Estudiante marcando" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Confirmación ¡Presente!" /> |
+| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Inicio del docente" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Sesión en vivo del docente" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Estudiante: acerca el celular" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Inicio del estudiante" /> |
 
-| 5. Inscripción por QR | 6. Cierre y reporte Excel | 7. Centro de ayuda | 8. Inicio del docente (modo oscuro) |
+| 5. Inscripción por QR | 6. Sesión firmada | 7. Centro de ayuda | 8. Inicio del docente (modo oscuro) |
 | :---: | :---: | :---: | :---: |
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Inscripción por QR" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Cierre y reporte Excel" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Centro de ayuda" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Inicio del docente en modo oscuro" /> |
+| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Inscripción por QR" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Sesión firmada" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Centro de ayuda" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Inicio del docente en modo oscuro" /> |
 
 ---
 
@@ -164,7 +164,7 @@ Descarga la versión correspondiente a tu rol desde [GitHub Releases](https://gi
   *Application ID:* `co.edu.uniguajira.asistencia_uniguajira.estudiante`
 
 **Detalles del paquete:**
-- **Tamaño de la APK:** ~{{APK_SIZE_MB}} MB
+- **Tamaño de la APK:** ~35 MB
 - **Sistema operativo mínimo:** Android 7.0 (API 24, Nougat) o superior
 - **Requisito de hardware:** Celular con soporte para Bluetooth Low Energy (BLE) y modo periférico (BLE Advertising).
 

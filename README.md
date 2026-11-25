@@ -63,13 +63,13 @@ Current version: **1.0.0** — [release notes](CHANGELOG.md)
   <img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="AsistenciaBLE Feature Graphic" width="800" />
 </p>
 
-| 1. Teacher Home | 2. Teacher Live Session | 3. Student Checking In | 4. Present Confirmation |
+| 1. Teacher Home | 2. Teacher Live Session | 3. Student: Bring Phone Close | 4. Student Home |
 | :---: | :---: | :---: | :---: |
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Teacher Home" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Teacher Live Session" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Student Checking In" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Present Confirmation" /> |
+| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Teacher Home" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Teacher Live Session" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Student: bring phone close" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Student home" /> |
 
-| 5. QR Enrollment | 6. Session Close & Report | 7. Help Center | 8. Teacher Dark Mode |
+| 5. QR Enrollment | 6. Signed Session | 7. Help Center | 8. Teacher Dark Mode |
 | :---: | :---: | :---: | :---: |
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="QR Enrollment" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Session Close and Report" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Help Center" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Teacher Dark Mode" /> |
+| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="QR Enrollment" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Signed session" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Help Center" /> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Teacher Dark Mode" /> |
 
 ---
 
@@ -164,7 +164,7 @@ Download the latest release for your role from [GitHub Releases](https://github.
   *Application ID:* `co.edu.uniguajira.asistencia_uniguajira.estudiante`
 
 **Package details:**
-- **APK size:** ~{{APK_SIZE_MB}} MB
+- **APK size:** ~35 MB
 - **Minimum OS:** Android 7.0 (API level 24, Nougat) or higher
 - **Hardware requirement:** Device must support Bluetooth Low Energy (BLE) and BLE Peripheral mode (Advertising).
 
